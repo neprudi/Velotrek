@@ -1,0 +1,375 @@
+// Переменные состояния
+        let map, summaryMap;
+        let polyline, summaryPolyline;
+        let marker;
+        let watchId = null;
+        let isRecording = false;
+        let isPaused = false; 
+        
+        let speed = 0;
+        let maxSpeed = 0;
+        let totalElevation = 0;
+        let currentSlope = 0;
+        let seconds = 0; 
+        let moveSeconds = 0; 
+        let distance = 0;
+        let speedHistory = []; 
+        let pathCoordinates = [];
+        let lastLat = null;
+        let lastLon = null;
+        let lastAlt = null;
+        let timerInt = null; // Вынесли интервал в глобальную область
+        
+        const USER_WEIGHT_KG = 75; 
+        const PAUSE_THRESHOLD = 3.0; 
+
+        // DOM элементы
+        const els = {
+            startBtn: document.getElementById('startBtn'),
+            stopBtn: document.getElementById('stopBtn'),
+            speed: document.getElementById('speedDisplay'),
+            maxSpeed: document.getElementById('maxSpeedDisplay'),
+            elev: document.getElementById('elevationDisplay'),
+            slope: document.getElementById('slopeDisplay'),
+            time: document.getElementById('timeDisplay'),
+            gpsStatus: document.getElementById('gpsStatus'),
+            pauseIndicator: document.getElementById('pauseIndicator'),
+            speedWrapper: document.getElementById('speedWrapper'),
+            errorMsg: document.getElementById('errorMsg'),
+            modal: document.getElementById('summaryModal'),
+            shareTime: document.getElementById('shareTime'),
+            shareAvgSpeed: document.getElementById('shareAvgSpeed'),
+            shareDist: document.getElementById('shareDist'),
+            shareCalories: document.getElementById('shareCalories'),
+            statMoveTime: document.getElementById('statMoveTime'),
+            statMaxSpeed: document.getElementById('statMaxSpeed'),
+            statAvgSpeed: document.getElementById('statAvgSpeed'),
+            statElev: document.getElementById('statElev'),
+            statCalories: document.getElementById('statCalories'),
+            shareBtn: document.getElementById('shareBtn'),
+            saveBtn: document.getElementById('saveRideBtn'),
+            discardBtn: document.getElementById('discardRideBtn')
+        };
+
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false,
+                doubleClickZoom: false,
+                fadeAnimation: false
+            }).setView([44.7866, 20.4489], 13); // Дефолт на Белград, если GPS не ответит вовремя
+
+            // ВАЖНО: Добавлен crossOrigin для html2canvas
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                crossOrigin: true 
+            }).addTo(map);
+
+            polyline = L.polyline([], {
+                color: '#00d2ff',
+                weight: 6,
+                opacity: 0.9,
+                lineCap: 'round'
+            }).addTo(map);
+
+            const icon = L.divIcon({
+                className: 'user-marker',
+                html: '<div style="background:#00ff9d; width:14px; height:14px; border-radius:50%; border:3px solid white; box-shadow:0 0 15px rgba(0,255,157,0.6);"></div>',
+                iconSize: [20, 20]
+            });
+            marker = L.marker([44.7866, 20.4489], {icon: icon}).addTo(map);
+        }
+
+        function formatTime(s) {
+            const m = Math.floor(s / 60).toString().padStart(2, '0');
+            const sec = (s % 60).toString().padStart(2, '0');
+            return `${m}:${sec}`;
+        }
+
+        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2-lat1) * Math.PI/180;
+            const dLon = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function handlePosition(position) {
+            if (!isRecording) return;
+
+            // Фильтруем слишком плохую точность (более 30 метров) для избежания прыжков
+            if (position.coords.accuracy > 30) return;
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const alt = position.coords.altitude;
+            let accSpeed = position.coords.speed;
+
+            if (accSpeed === null || accSpeed < 0) {
+                if (lastLat !== null) {
+                    const dist = getDistanceFromLatLonInM(lastLat, lastLon, lat, lon);
+                    // Игнорируем микро-шатания GPS на месте (меньше 3 метров)
+                    if (dist > 3) accSpeed = dist / 1.0; 
+                    else accSpeed = 0;
+                } else {
+                    accSpeed = 0;
+                }
+            }
+            
+            let currentSpeedKmh = (accSpeed * 3.6).toFixed(1);
+            if (currentSpeedKmh < 0) currentSpeedKmh = 0;
+            if (currentSpeedKmh > 100) currentSpeedKmh = maxSpeed;
+
+            const isMoving = parseFloat(currentSpeedKmh) > PAUSE_THRESHOLD;
+            
+            if (isMoving && isPaused) {
+                isPaused = false;
+                els.pauseIndicator.classList.remove('visible');
+                els.speedWrapper.classList.remove('paused');
+                els.gpsStatus.textContent = "GPS ACTIVE";
+                els.gpsStatus.style.backgroundColor = "rgba(0, 255, 157, 0.2)";
+                els.gpsStatus.style.color = "#00cc7a";
+                els.gpsStatus.style.borderColor = "rgba(0, 255, 157, 0.3)";
+            } else if (!isMoving && !isPaused && seconds > 3) {
+                isPaused = true;
+                els.pauseIndicator.classList.add('visible');
+                els.speedWrapper.classList.add('paused');
+                els.gpsStatus.textContent = "ПАУЗА";
+                els.gpsStatus.style.backgroundColor = "rgba(255, 159, 0, 0.2)";
+                els.gpsStatus.style.color = "var(--accent-orange)";
+                els.gpsStatus.style.borderColor = "rgba(255, 159, 0, 0.3)";
+                currentSpeedKmh = "0.0";
+            }
+
+            if (!isPaused) {
+                const newLatLng = new L.LatLng(lat, lon);
+                marker.setLatLng(newLatLng);
+                polyline.addLatLng(newLatLng);
+                pathCoordinates.push([lat, lon]);
+                map.panTo(newLatLng);
+
+                if (parseFloat(currentSpeedKmh) > maxSpeed) {
+                    maxSpeed = parseFloat(currentSpeedKmh);
+                    els.maxSpeed.textContent = Math.floor(maxSpeed);
+                }
+
+                if (alt !== null && lastAlt !== null) {
+                    const dist = getDistanceFromLatLonInM(lastLat, lastLon, lat, lon);
+                    if (dist > 1) {
+                        const elevChange = alt - lastAlt;
+                        if (elevChange > 0) totalElevation += elevChange;
+                        currentSlope = ((elevChange / dist) * 100).toFixed(1);
+                    }
+                } else {
+                    currentSlope = 0;
+                }
+
+                if (lastLat !== null) {
+                    distance += getDistanceFromLatLonInM(lastLat, lastLon, lat, lon);
+                }
+
+                lastLat = lat;
+                lastLon = lon;
+                lastAlt = alt;
+                
+                moveSeconds++;
+                speedHistory.push(parseFloat(currentSpeedKmh));
+            }
+
+            els.speed.textContent = currentSpeedKmh;
+            els.elev.textContent = `+${Math.floor(totalElevation)} м`;
+            
+            if (currentSlope > 0.5) {
+                els.slope.textContent = `+${currentSlope}%`;
+                els.slope.className = 'metric-value slope-up';
+            } else if (currentSlope < -0.5) {
+                els.slope.textContent = `${currentSlope}%`;
+                els.slope.className = 'metric-value slope-down';
+            } else {
+                els.slope.textContent = '0%';
+                els.slope.className = 'metric-value';
+            }
+        }
+
+        function startRide() {
+            if (!navigator.geolocation) {
+                els.errorMsg.style.display = 'block';
+                return;
+            }
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сброс предыдущих координат при новом старте!
+            lastLat = null;
+            lastLon = null;
+            lastAlt = null;
+
+            isRecording = true;
+            isPaused = false;
+            els.startBtn.style.display = 'none';
+            els.stopBtn.classList.add('visible');
+            els.gpsStatus.textContent = "GPS ACTIVE";
+            els.gpsStatus.style.backgroundColor = "rgba(0, 255, 157, 0.2)";
+            els.gpsStatus.style.color = "#00cc7a";
+            els.gpsStatus.style.borderColor = "rgba(0, 255, 157, 0.3)";
+            els.gpsStatus.style.display = 'block';
+            els.pauseIndicator.classList.remove('visible');
+            els.speedWrapper.classList.remove('paused');
+            
+            maxSpeed = 0;
+            totalElevation = 0;
+            distance = 0;
+            seconds = 0;
+            moveSeconds = 0;
+            speedHistory = [];
+            pathCoordinates = [];
+            polyline.setLatLngs([]);
+            els.maxSpeed.textContent = '0';
+            els.speed.textContent = '0';
+            els.elev.textContent = '0 м';
+            els.slope.textContent = '0%';
+            els.time.textContent = '00:00';
+
+            watchId = navigator.geolocation.watchPosition(handlePosition, (err) => {
+                console.error(err);
+            }, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            });
+
+            if(timerInt) clearInterval(timerInt);
+            timerInt = setInterval(() => {
+                if (!isRecording) return;
+                if (!isPaused) {
+                    seconds++;
+                    els.time.textContent = formatTime(seconds);
+                }
+            }, 1000);
+        }
+
+        function stopRide() {
+            isRecording = false;
+            isPaused = false;
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (timerInt) clearInterval(timerInt);
+            
+            els.stopBtn.classList.remove('visible');
+            els.startBtn.style.display = 'flex';
+            els.startBtn.textContent = 'ЕЩЕ РАЗ';
+            els.gpsStatus.style.display = 'none';
+            els.pauseIndicator.classList.remove('visible');
+
+            const avg = speedHistory.length ? (speedHistory.reduce((a,b)=>a+b,0)/speedHistory.length).toFixed(1) : 0;
+            const distKm = (distance / 1000).toFixed(2);
+            const calories = Math.floor(USER_WEIGHT_KG * parseFloat(distKm) * 0.5); 
+
+            els.shareTime.textContent = formatTime(seconds);
+            els.shareAvgSpeed.textContent = avg;
+            els.shareDist.textContent = `${distKm} км`;
+            els.shareCalories.textContent = `${calories}`;
+
+            els.statMoveTime.textContent = formatTime(moveSeconds); // Показываем чистое время движения
+            els.statMaxSpeed.textContent = `${Math.floor(maxSpeed)} км/ч`;
+            els.statAvgSpeed.textContent = `${avg} км/ч`;
+            els.statElev.textContent = `+${Math.floor(totalElevation)} м`;
+            els.statCalories.textContent = `${calories} ккал`;
+
+            els.modal.classList.add('active');
+
+            setTimeout(() => {
+                if (summaryMap) summaryMap.remove();
+                summaryMap = L.map('summaryMap', { 
+                    zoomControl: false, 
+                    attributionControl: false,
+                    draggable: false,
+                    scrollWheelZoom: false
+                }).setView([44.7866, 20.4489], 13);
+                
+                // Здесь тоже включаем crossOrigin для корректного скриншота карты
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    crossOrigin: true
+                }).addTo(summaryMap);
+                
+                if (pathCoordinates.length > 0) {
+                    summaryPolyline = L.polyline(pathCoordinates, { color: '#00d2ff', weight: 4 }).addTo(summaryMap);
+                    summaryMap.fitBounds(summaryPolyline.getBounds(), { padding: [30, 30] });
+                }
+            }, 300); // Немного увеличили задержку, чтобы модалка успела отрендериться
+        }
+
+        async function shareResult() {
+            const card = document.getElementById('shareCardContainer');
+            els.shareBtn.textContent = "Генерация...";
+            
+            try {
+                // Ждем 500мс, чтобы тайлы карты точно загрузились в DOM перед скриншотом
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const canvas = await html2canvas(card, {
+                    scale: 2,
+                    useCORS: true, // Позволяет захватывать cross-origin тайлы карты
+                    allowTaint: false,
+                    backgroundColor: '#ffffff'
+                });
+                
+                canvas.toBlob((blob) => {
+                    if (!blob) return;
+                    const file = new File([blob], "velotrek-ride.png", { type: "image/png" });
+                    
+                    if (navigator.share && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            title: 'Моя поездка Velotrek',
+                            text: `Проехал ${els.shareDist.textContent}! Средняя скорость ${els.shareAvgSpeed.textContent} км/ч.`,
+                            files: [file]
+                        }).catch(console.error);
+                    } else {
+                        const link = document.createElement('a');
+                        link.download = 'velotrek-ride.png';
+                        link.href = canvas.toDataURL();
+                        link.click();
+                    }
+                    els.shareBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg> ПОДЕЛИТЬСЯ`;
+                });
+            } catch (err) {
+                console.error(err);
+                alert('Ошибка создания изображения.');
+                els.shareBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg> ПОДЕЛИТЬСЯ`;
+            }
+        }
+
+        function resetApp() {
+            els.modal.classList.remove('active');
+            els.startBtn.textContent = 'СТАРТ';
+        }
+
+        window.addEventListener('load', () => {
+            initMap();
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+                }, null, { timeout: 5000 });
+            }
+        });
+
+        els.startBtn.addEventListener('click', startRide);
+        els.stopBtn.addEventListener('click', stopRide);
+        els.shareBtn.addEventListener('click', shareResult);
+        els.saveBtn.addEventListener('click', () => {
+            // Реализация локального сохранения (опционально)
+            const rideData = {
+                distance: els.shareDist.textContent,
+                time: els.shareTime.textContent,
+                avgSpeed: els.shareAvgSpeed.textContent,
+                coordinates: pathCoordinates,
+                date: new Date().toLocaleDateString()
+            };
+            const history = JSON.parse(localStorage.getItem('velo_history') || '[]');
+            history.push(rideData);
+            localStorage.setItem('velo_history', JSON.stringify(history));
+            
+            alert('Маршрут сохранен в память браузера!');
+            resetApp();
+        });
+        els.discardBtn.addEventListener('click', resetApp);
