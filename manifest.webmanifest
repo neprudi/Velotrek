@@ -1,0 +1,11 @@
+{
+  "name": "Velotrek",
+  "short_name": "Velotrek",
+  "description": "Bike tracker for your own use",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "orientation": "portrait",
+  "icons": []
+}
