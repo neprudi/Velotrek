@@ -570,12 +570,48 @@
     }
 
     .history-map {
+      position: relative;
       height: 150px;
       border-radius: 18px;
       overflow: hidden;
       background: #11161d;
       border: 1px solid rgba(255,255,255,0.05);
       cursor: pointer;
+    }
+
+    .history-map-open {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 12px;
+      border: 0;
+      background: linear-gradient(180deg, rgba(6,16,24,0.02) 25%, rgba(6,16,24,0.28) 100%);
+      color: #ecfbff;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      opacity: 0.32;
+      transition: opacity 160ms ease, background 160ms ease;
+    }
+
+    .history-map-open span {
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(6, 16, 24, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+      backdrop-filter: blur(10px);
+    }
+
+    .history-map:hover .history-map-open,
+    .history-map:focus-within .history-map-open {
+      opacity: 1;
     }
 
     .history-map.empty {
@@ -668,6 +704,42 @@
       margin-top: 14px;
     }
 
+    .history-card-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mini-btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+      min-height: 42px;
+    }
+
+    .mini-btn:active { transform: translateY(1px); }
+    .mini-btn:hover { background: rgba(255,255,255,0.07); }
+    .mini-btn.primary {
+      border-color: rgba(0, 210, 255, 0.18);
+      background: rgba(0, 210, 255, 0.12);
+      color: #a9f2ff;
+    }
+    .mini-btn.danger {
+      border-color: rgba(255, 92, 122, 0.22);
+      background: rgba(255, 92, 122, 0.12);
+      color: #ffd7e0;
+    }
+
     .route-shell {
       width: min(980px, 100%);
     }
@@ -692,6 +764,98 @@
 
     .route-stats {
       margin-top: 14px;
+    }
+
+    .share-poster {
+      position: fixed;
+      left: -12000px;
+      top: 0;
+      width: 1080px;
+      border-radius: 36px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(0, 210, 255, 0.24), transparent 28%),
+        radial-gradient(circle at top right, rgba(0, 255, 157, 0.18), transparent 24%),
+        linear-gradient(180deg, #111822, #0c1218);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 30px 90px rgba(0,0,0,0.45);
+      padding: 28px;
+    }
+
+    .share-poster-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .share-poster-title {
+      font-size: 34px;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      margin: 10px 0 0;
+    }
+
+    .share-poster-subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .share-poster-badge {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(0, 210, 255, 0.14);
+      border: 1px solid rgba(0, 210, 255, 0.18);
+      color: #baf6ff;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+
+    .share-poster-route {
+      height: 520px;
+      border-radius: 28px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 18px;
+    }
+
+    .share-poster-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .share-poster-stat {
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      min-width: 0;
+    }
+
+    .share-poster-stat span {
+      display: block;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+
+    .share-poster-stat strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.08;
+      font-family: 'IBM Plex Mono', monospace;
+      font-variant-numeric: tabular-nums;
     }
 
     .summary-actions {
@@ -960,6 +1124,8 @@
       <div id='routeStats' class='history-grid route-stats'></div>
 
       <div class='summary-actions history-actions'>
+        <button id='shareRouteBtn' class='btn btn-share' type='button'>ПОДЕЛИТЬСЯ</button>
+        <button id='deleteRouteBtn' class='btn btn-discard' type='button'>УДАЛИТЬ</button>
         <button id='closeRouteBtn' class='btn btn-secondary' type='button'>ЗАКРЫТЬ</button>
       </div>
     </div>
@@ -1044,6 +1210,8 @@
       routeSubtitle: document.getElementById('routeSubtitle'),
       routeRibbon: document.getElementById('routeRibbon'),
       routeStats: document.getElementById('routeStats'),
+      shareRouteBtn: document.getElementById('shareRouteBtn'),
+      deleteRouteBtn: document.getElementById('deleteRouteBtn'),
       closeRouteBtn: document.getElementById('closeRouteBtn')
     };
 
@@ -1227,10 +1395,11 @@
       const samples = Array.isArray(ride.speedHistory) ? ride.speedHistory.filter((value) => Number.isFinite(value)) : [];
       const stats = getSpeedStatsFromSamples(samples);
       const fallbackAvg = typeof ride.avgSpeed === 'string' ? parseFloat(ride.avgSpeed.replace(',', '.')) : ride.avgSpeed;
+      const fallbackMin = typeof ride.minSpeed === 'string' ? parseFloat(ride.minSpeed.replace(',', '.')) : ride.minSpeed;
       const fallbackMax = typeof ride.maxSpeed === 'string' ? parseFloat(ride.maxSpeed.replace(',', '.')) : ride.maxSpeed;
       return {
         avg: stats.avg ?? (Number.isFinite(fallbackAvg) ? fallbackAvg : null),
-        min: stats.min,
+        min: stats.min ?? (Number.isFinite(fallbackMin) ? fallbackMin : null),
         max: stats.max ?? (Number.isFinite(fallbackMax) ? fallbackMax : null),
       };
     }
@@ -1308,6 +1477,221 @@
       historyPreviewMaps = [];
     }
 
+    function smoothRouteCoordinates(coordinates) {
+      if (!Array.isArray(coordinates) || coordinates.length < 4) {
+        return Array.isArray(coordinates) ? coordinates.map((point) => [...point]) : [];
+      }
+
+      const smoothed = [coordinates[0]];
+      for (let index = 0; index < coordinates.length - 1; index += 1) {
+        const [lat1, lng1] = coordinates[index];
+        const [lat2, lng2] = coordinates[index + 1];
+        smoothed.push([
+          lat1 * 0.72 + lat2 * 0.28,
+          lng1 * 0.72 + lng2 * 0.28,
+        ]);
+        smoothed.push([
+          lat1 * 0.28 + lat2 * 0.72,
+          lng1 * 0.28 + lng2 * 0.72,
+        ]);
+      }
+      smoothed.push(coordinates[coordinates.length - 1]);
+      return smoothed;
+    }
+
+    function projectCoordinatesToSvg(coordinates, width, height, padding) {
+      const fallback = coordinates.length > 0 ? coordinates : [[0, 0]];
+      const lats = fallback.map(([lat]) => lat);
+      const lngs = fallback.map(([, lng]) => lng);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+      const latSpan = Math.max(maxLat - minLat, 0.00001);
+      const lngSpan = Math.max(maxLng - minLng, 0.00001);
+
+      return fallback.map(([lat, lng]) => ([
+        padding + ((lng - minLng) / lngSpan) * (width - padding * 2),
+        height - padding - ((lat - minLat) / latSpan) * (height - padding * 2),
+      ]));
+    }
+
+    function buildRouteSvgMarkup(coordinates) {
+      const width = 1000;
+      const height = 560;
+      const displayCoordinates = smoothRouteCoordinates(coordinates);
+      const points = projectCoordinatesToSvg(displayCoordinates, width, height, 54);
+
+      if (points.length < 2) {
+        return `
+          <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="shareBg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#0f1722" />
+                <stop offset="100%" stop-color="#0a1118" />
+              </linearGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#shareBg)" />
+          </svg>`;
+      }
+
+      const pathD = points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+      const step = Math.max(1, Math.floor(points.length / 8));
+      const routeMarkers = points.filter((_, index) => index % step === 0 || index === points.length - 1);
+      const start = points[0];
+      const end = points[points.length - 1];
+
+      return `
+        <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="shareBg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#101a27" />
+              <stop offset="100%" stop-color="#0a1118" />
+            </linearGradient>
+            <radialGradient id="shareGlow" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stop-color="#00d2ff" stop-opacity="0.24" />
+              <stop offset="100%" stop-color="#00d2ff" stop-opacity="0" />
+            </radialGradient>
+            <pattern id="shareGrid" width="54" height="54" patternUnits="userSpaceOnUse">
+              <path d="M 54 0 L 0 0 0 54" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+            </pattern>
+            <filter id="shareBlur" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="12" />
+            </filter>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#shareBg)" />
+          <rect width="100%" height="100%" fill="url(#shareGlow)" />
+          <rect width="100%" height="100%" fill="url(#shareGrid)" opacity="0.28" />
+          <path d="${pathD}" fill="none" stroke="rgba(0, 255, 157, 0.22)" stroke-width="18" filter="url(#shareBlur)" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="${pathD}" fill="none" stroke="#00d2ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+          ${routeMarkers.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#baf6ff" opacity="0.75" />`).join('')}
+          <circle cx="${start[0].toFixed(1)}" cy="${start[1].toFixed(1)}" r="15" fill="#00ff9d" opacity="0.18" />
+          <circle cx="${start[0].toFixed(1)}" cy="${start[1].toFixed(1)}" r="8" fill="#00ff9d" stroke="#061018" stroke-width="4" />
+          <circle cx="${end[0].toFixed(1)}" cy="${end[1].toFixed(1)}" r="15" fill="#ff5c7a" opacity="0.18" />
+          <circle cx="${end[0].toFixed(1)}" cy="${end[1].toFixed(1)}" r="8" fill="#ff5c7a" stroke="#061018" stroke-width="4" />
+        </svg>`;
+    }
+
+    function createShareStat(label, value) {
+      const stat = document.createElement('div');
+      stat.className = 'share-poster-stat';
+
+      const text = document.createElement('span');
+      text.textContent = label;
+
+      const strong = document.createElement('strong');
+      strong.textContent = value;
+
+      stat.append(text, strong);
+      return stat;
+    }
+
+    function buildSharePoster(ride) {
+      const normalizedRide = normalizeHistoryRide(ride);
+      const poster = document.createElement('section');
+      poster.className = 'share-poster';
+
+      const routeStats = [
+        ['Время', formatNullableDuration(normalizedRide.seconds)],
+        ['В движении', formatNullableDuration(normalizedRide.moveSeconds)],
+        ['Км', `${getRideDistanceKm(normalizedRide).toFixed(2)}`],
+        ['Ср. скорость', normalizedRide.speedAvg === null ? 'Н/Д' : `${normalizedRide.speedAvg.toFixed(1)} км/ч`],
+        ['Мин. / макс.', `${formatNullableSpeed(normalizedRide.speedMin)} / ${formatNullableSpeed(normalizedRide.speedMax)}`],
+        ['Подъем', normalizedRide.elevationGain === null ? 'Н/Д' : `+${Math.round(normalizedRide.elevationGain)} м`],
+        ['Спуск', normalizedRide.elevationLoss === null ? 'Н/Д' : `-${Math.round(normalizedRide.elevationLoss)} м`],
+        ['Паузы', normalizedRide.pauseCount === null ? formatNullableDuration(normalizedRide.pauseSeconds) : `${normalizedRide.pauseCount} × ${formatNullableDuration(normalizedRide.pauseSeconds)}`],
+      ];
+
+      poster.innerHTML = `
+        <div class="share-poster-top">
+          <div>
+            <div class="share-poster-badge">Velotrek</div>
+            <div class="share-poster-title">${formatHistoryTitle(normalizedRide)}</div>
+            <div class="share-poster-subtitle">${normalizedRide.dateLabel || normalizedRide.date || 'Сохранённый маршрут'} · ${normalizedRide.time || formatNullableDuration(normalizedRide.seconds)} · ${getRideCalories(normalizedRide)} ккал</div>
+          </div>
+          <div class="share-poster-badge">${normalizedRide.distanceKm.toFixed(2)} км</div>
+        </div>
+        <div class="share-poster-route">
+          ${buildRouteSvgMarkup(normalizedRide.coordinates)}
+        </div>
+        <div class="share-poster-stats"></div>
+      `;
+
+      const stats = poster.querySelector('.share-poster-stats');
+      routeStats.forEach(([label, value]) => {
+        stats.appendChild(createShareStat(label, value));
+      });
+
+      return poster;
+    }
+
+    async function shareRide(ride) {
+      const poster = buildSharePoster(ride);
+      poster.style.pointerEvents = 'none';
+      document.body.appendChild(poster);
+
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 120));
+
+        const canvas = await html2canvas(poster, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: null
+        });
+
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) {
+          throw new Error('Failed to create share image');
+        }
+
+        const file = new File([blob], 'velotrek-ride.png', { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `Velotrek · ${formatHistoryTitle(normalizeHistoryRide(ride))}`,
+            text: `${getRideDistanceKm(ride).toFixed(2)} км, ${getRideCalories(ride)} ккал, ${formatNullableDuration(getRideDurationSeconds(ride))}.`,
+            files: [file]
+          });
+        } else {
+          const link = document.createElement('a');
+          link.download = 'velotrek-ride.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        }
+      } catch (err) {
+        if (err && err.name !== 'AbortError') {
+          console.error(err);
+          showNotification('Не удалось подготовить красивый шаринг поездки.', 'error');
+        }
+      } finally {
+        poster.remove();
+      }
+    }
+
+    function getHistoryRecords() {
+      return getStoredHistory()
+        .map((ride, sourceIndex) => ({
+          ride: normalizeHistoryRide(ride),
+          sourceIndex,
+        }))
+        .sort((left, right) => getHistoryTimestamp(right.ride) - getHistoryTimestamp(left.ride));
+    }
+
+    function deleteHistoryRide(sourceIndex) {
+      const history = getStoredHistory();
+      if (sourceIndex < 0 || sourceIndex >= history.length) {
+        return false;
+      }
+
+      history.splice(sourceIndex, 1);
+      setStoredHistory(history);
+      updateHistoryBadge();
+      return true;
+    }
+
     function normalizeHistoryRide(ride) {
       const coordinates = getRideCoordinates(ride);
       const speedStats = getRideSpeedStats(ride);
@@ -1336,7 +1720,7 @@
     }
 
     function getRideStatEntries(ride) {
-      const movingSeconds = Number.isFinite(ride.moveSeconds) ? ride.moveSeconds : 0;
+      const movingSeconds = getRideMovingSeconds(ride);
       const speedStats = getRideSpeedStats(ride);
       const pauseStats = getRidePauseStats(ride);
       const elevationStats = getRideElevationStats(ride);
@@ -1373,7 +1757,9 @@
       const container = document.getElementById(containerId);
       if (!container) return null;
 
-      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      const displayCoordinates = smoothRouteCoordinates(coordinates);
+
+      if (!Array.isArray(displayCoordinates) || displayCoordinates.length < 2) {
         container.classList.add('empty');
         container.textContent = 'Маршрут не сохранён';
         return null;
@@ -1390,19 +1776,34 @@
         boxZoom: false,
         inertia: false,
         preferCanvas: true
-      }).setView(coordinates[0], 13);
+      }).setView(displayCoordinates[0], 13);
 
       L.tileLayer(ROUTE_TILE_URL, {
         crossOrigin: true
       }).addTo(previewMap);
 
-      const route = L.polyline(coordinates, {
+      const route = L.polyline(displayCoordinates, {
         color: '#00d2ff',
         weight: 4,
         opacity: 0.95,
         smoothFactor: 0,
         lineCap: 'round',
         lineJoin: 'round'
+      }).addTo(previewMap);
+
+      L.circleMarker(displayCoordinates[0], {
+        radius: 6,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#00ff9d',
+        fillOpacity: 1
+      }).addTo(previewMap);
+      L.circleMarker(displayCoordinates[displayCoordinates.length - 1], {
+        radius: 6,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#ff5c7a',
+        fillOpacity: 1
       }).addTo(previewMap);
 
       previewMap.fitBounds(route.getBounds(), { padding: [16, 16] });
@@ -1420,7 +1821,7 @@
     function buildRouteDetailMap(ride) {
       clearRouteDetailMap();
 
-      const coordinates = getRideCoordinates(ride);
+      const coordinates = smoothRouteCoordinates(getRideCoordinates(ride));
       if (!els.routeMap) return;
 
       els.routeMap.classList.remove('empty');
@@ -1456,12 +1857,30 @@
         lineJoin: 'round'
       }).addTo(routeDetailMap);
 
+      L.circleMarker(coordinates[0], {
+        radius: 7,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#00ff9d',
+        fillOpacity: 1
+      }).addTo(routeDetailMap);
+      L.circleMarker(coordinates[coordinates.length - 1], {
+        radius: 7,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#ff5c7a',
+        fillOpacity: 1
+      }).addTo(routeDetailMap);
+
       routeDetailMap.fitBounds(route.getBounds(), { padding: [24, 24] });
       requestAnimationFrame(() => routeDetailMap.invalidateSize());
     }
 
-    function openRouteModal(ride) {
-      activeRouteRide = normalizeHistoryRide(ride);
+    function openRouteModal(record) {
+      activeRouteRide = {
+        ...normalizeHistoryRide(record.ride || record),
+        sourceIndex: record.sourceIndex,
+      };
 
       if (els.routeTitle) {
         els.routeTitle.textContent = formatHistoryTitle(activeRouteRide);
@@ -1476,6 +1895,10 @@
         els.routeRibbon.textContent = activeRouteRide.time || formatNullableDuration(activeRouteRide.seconds);
       }
 
+      if (els.deleteRouteBtn) {
+        els.deleteRouteBtn.style.display = Number.isFinite(activeRouteRide.sourceIndex) ? 'inline-flex' : 'none';
+      }
+
       renderRideStats(els.routeStats, activeRouteRide);
       els.routeModal.classList.add('active');
       setTimeout(() => buildRouteDetailMap(activeRouteRide), 120);
@@ -1487,14 +1910,40 @@
       activeRouteRide = null;
     }
 
+    function buildCurrentRidePayload() {
+      const speedStats = getSpeedStatsFromSamples(speedHistory);
+      const distanceKm = Number((distance / 1000).toFixed(2));
+
+      return normalizeHistoryRide({
+        time: formatTime(seconds),
+        moveTime: formatTime(moveSeconds),
+        distance: `${distanceKm.toFixed(2)} км`,
+        distanceMeters: distance,
+        distanceKm,
+        seconds,
+        moveSeconds,
+        avgSpeed: speedStats.avg ?? 0,
+        minSpeed: speedStats.min,
+        maxSpeed: speedStats.max ?? maxSpeed,
+        calories: lastCalories,
+        totalElevation,
+        totalDescent,
+        pauseCount,
+        pauseSeconds: Math.max(seconds - moveSeconds, 0),
+        speedHistory: [...speedHistory],
+        coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
+        pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
+        routePoints: pathCoordinates.map(([lat, lon]) => ({ lat, lng: lon })),
+        date: new Date().toLocaleDateString('ru-RU'),
+        dateLabel: new Date().toLocaleString('ru-RU'),
+        savedAt: new Date().toISOString(),
+      });
+    }
+
     function renderHistoryList() {
       if (!els.historyList) return;
 
-      const history = getStoredHistory()
-        .slice()
-        .sort((left, right) => {
-          return getHistoryTimestamp(right) - getHistoryTimestamp(left);
-        });
+      const history = getHistoryRecords();
 
       updateHistoryBadge();
       clearHistoryPreviewMaps();
@@ -1515,8 +1964,8 @@
         return;
       }
 
-      history.forEach((ride, index) => {
-        const normalizedRide = normalizeHistoryRide(ride);
+      history.forEach((record, index) => {
+        const normalizedRide = record.ride;
         const card = document.createElement('article');
         card.className = 'history-card';
 
@@ -1550,21 +1999,60 @@
 
         const grid = document.createElement('div');
         grid.className = 'history-grid';
-        getRideStatEntries(normalizedRide).slice(0, 8).forEach(([label, value]) => {
+        getRideStatEntries(normalizedRide).forEach(([label, value]) => {
           grid.appendChild(createHistoryStat(label, value));
         });
 
-        body.append(top, grid);
+        const actions = document.createElement('div');
+        actions.className = 'history-card-actions';
+
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'mini-btn primary';
+        openBtn.textContent = 'Открыть';
+
+        const shareBtn = document.createElement('button');
+        shareBtn.type = 'button';
+        shareBtn.className = 'mini-btn';
+        shareBtn.textContent = 'Поделиться';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'mini-btn danger';
+        deleteBtn.textContent = 'Удалить';
+
+        openBtn.addEventListener('click', () => openRouteModal(record));
+        shareBtn.addEventListener('click', () => shareRide(normalizedRide));
+        deleteBtn.addEventListener('click', () => {
+          const confirmed = confirm('Удалить эту поездку из истории?');
+          if (!confirmed) return;
+          if (deleteHistoryRide(record.sourceIndex)) {
+            renderHistoryList();
+            showNotification('Поездка удалена из истории.', 'warning');
+          }
+        });
+
+        actions.append(openBtn, shareBtn, deleteBtn);
+
+        body.append(top, grid, actions);
         card.append(mapBox, body);
         els.historyList.appendChild(card);
-
-        mapBox.addEventListener('click', () => {
-          openRouteModal(normalizedRide);
-        });
 
         const previewMap = createRoutePreviewMap(mapBox.id, normalizedRide.coordinates);
         if (previewMap) {
           historyPreviewMaps.push(previewMap);
+
+          const openOverlay = document.createElement('button');
+          openOverlay.type = 'button';
+          openOverlay.className = 'history-map-open';
+          openOverlay.setAttribute('aria-label', 'Открыть маршрут');
+          openOverlay.innerHTML = '<span>Открыть маршрут</span>';
+          openOverlay.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openRouteModal(record);
+          });
+          mapBox.appendChild(openOverlay);
         }
       });
     }
@@ -1598,7 +2086,8 @@
         weight: 6,
         opacity: 0.9,
         smoothFactor: 0,
-        lineCap: 'round'
+        lineCap: 'round',
+        lineJoin: 'round'
       }).addTo(map);
 
       const icon = L.divIcon({
@@ -1629,16 +2118,16 @@
     function snapshotActiveRide() {
       return {
         seconds,
-      moveSeconds,
-      distance,
-      maxSpeed,
-      totalElevation,
-      totalDescent,
-      currentSlope,
-      pauseCount,
-      speedHistory,
-      pathCoordinates,
-      lastLat,
+        moveSeconds,
+        distance,
+        maxSpeed,
+        totalElevation,
+        totalDescent,
+        currentSlope,
+        pauseCount,
+        speedHistory,
+        pathCoordinates,
+        lastLat,
         lastLon,
         lastAlt,
         savedAt: new Date().toISOString()
@@ -2003,8 +2492,23 @@
           crossOrigin: true
         }).addTo(summaryMap);
 
-        if (pathCoordinates.length > 0) {
-          summaryPolyline = L.polyline(pathCoordinates, { color: '#00d2ff', weight: 4, smoothFactor: 0, lineCap: 'round', lineJoin: 'round' }).addTo(summaryMap);
+        const summaryCoordinates = smoothRouteCoordinates(pathCoordinates);
+        if (summaryCoordinates.length > 0) {
+          summaryPolyline = L.polyline(summaryCoordinates, { color: '#00d2ff', weight: 4, smoothFactor: 0, lineCap: 'round', lineJoin: 'round' }).addTo(summaryMap);
+          L.circleMarker(summaryCoordinates[0], {
+            radius: 6,
+            weight: 2,
+            color: '#061018',
+            fillColor: '#00ff9d',
+            fillOpacity: 1
+          }).addTo(summaryMap);
+          L.circleMarker(summaryCoordinates[summaryCoordinates.length - 1], {
+            radius: 6,
+            weight: 2,
+            color: '#061018',
+            fillColor: '#ff5c7a',
+            fillOpacity: 1
+          }).addTo(summaryMap);
           summaryMap.fitBounds(summaryPolyline.getBounds(), { padding: [30, 30] });
         }
         requestAnimationFrame(() => summaryMap.invalidateSize());
@@ -2012,42 +2516,7 @@
     }
 
     async function shareResult() {
-      const card = document.getElementById('shareCardContainer');
-      const previousLabel = els.shareBtn.textContent;
-      els.shareBtn.textContent = 'ГЕНЕРАЦИЯ...';
-
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const canvas = await html2canvas(card, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff'
-        });
-
-        canvas.toBlob((blob) => {
-          if (!blob) return;
-          const file = new File([blob], 'velotrek-ride.png', { type: 'image/png' });
-
-          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({
-              title: 'Моя поездка Velotrek',
-              text: `Проехал ${els.shareDist.textContent}! Средняя скорость ${els.shareAvgSpeed.textContent} км/ч.`,
-              files: [file]
-            }).catch(console.error);
-          } else {
-            const link = document.createElement('a');
-            link.download = 'velotrek-ride.png';
-            link.href = canvas.toDataURL();
-            link.click();
-          }
-          els.shareBtn.textContent = previousLabel;
-        });
-      } catch (err) {
-        console.error(err);
-        alert('Ошибка создания изображения.');
-        els.shareBtn.textContent = previousLabel;
-      }
+      return shareRide(buildCurrentRidePayload());
     }
 
     function resetApp() {
@@ -2099,6 +2568,20 @@
       }
     });
     els.closeRouteBtn.addEventListener('click', closeRouteModal);
+    els.shareRouteBtn.addEventListener('click', () => {
+      if (!activeRouteRide) return;
+      void shareRide(activeRouteRide);
+    });
+    els.deleteRouteBtn.addEventListener('click', () => {
+      if (!activeRouteRide || activeRouteRide.sourceIndex === undefined) return;
+      const confirmed = confirm('Удалить эту поездку из истории?');
+      if (!confirmed) return;
+      if (deleteHistoryRide(activeRouteRide.sourceIndex)) {
+        closeRouteModal();
+        renderHistoryList();
+        showNotification('Поездка удалена из истории.', 'warning');
+      }
+    });
     els.routeModal.addEventListener('click', (event) => {
       if (event.target === els.routeModal) {
         closeRouteModal();
@@ -2116,7 +2599,9 @@
 
     els.startBtn.addEventListener('click', startRide);
     els.stopBtn.addEventListener('click', stopRide);
-    els.shareBtn.addEventListener('click', shareResult);
+    els.shareBtn.addEventListener('click', () => {
+      void shareRide(buildCurrentRidePayload());
+    });
     els.saveBtn.addEventListener('click', () => {
       const speedStats = getSpeedStatsFromSamples(speedHistory);
       const pauseSeconds = Math.max(seconds - moveSeconds, 0);
