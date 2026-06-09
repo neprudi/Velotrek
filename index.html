@@ -575,6 +575,7 @@
       overflow: hidden;
       background: #11161d;
       border: 1px solid rgba(255,255,255,0.05);
+      cursor: pointer;
     }
 
     .history-map.empty {
@@ -664,6 +665,32 @@
     }
 
     .history-actions {
+      margin-top: 14px;
+    }
+
+    .route-shell {
+      width: min(980px, 100%);
+    }
+
+    .route-map-shell {
+      padding: 14px;
+      border-radius: 24px;
+      background:
+        radial-gradient(circle at top left, rgba(0, 210, 255, 0.10), transparent 24%),
+        radial-gradient(circle at top right, rgba(0, 255, 157, 0.08), transparent 22%),
+        rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .route-map {
+      width: 100%;
+      height: min(58dvh, 540px);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #11161d;
+    }
+
+    .route-stats {
       margin-top: 14px;
     }
 
@@ -777,6 +804,7 @@
       .history-grid { grid-template-columns: 1fr; }
       .history-head { margin-bottom: 10px; }
       .history-head p { font-size: 0.86rem; }
+      .route-map { height: 360px; }
       .toast-host { left: 10px; right: 10px; top: calc(10px + env(safe-area-inset-top)); }
     }
   </style>
@@ -915,6 +943,28 @@
     </div>
   </div>
 
+  <div id='routeModal' class='summary-modal' role='dialog' aria-modal='true' aria-labelledby='routeTitle'>
+    <div class='summary-shell route-shell'>
+      <div class='history-head'>
+        <div>
+          <h2 id='routeTitle'>Маршрут поездки</h2>
+          <p id='routeSubtitle'>Нажмите на карту, чтобы приблизить и рассмотреть трек.</p>
+        </div>
+        <div id='routeRibbon' class='share-ribbon'>КАРТА</div>
+      </div>
+
+      <div class='route-map-shell'>
+        <div id='routeMap' class='route-map'></div>
+      </div>
+
+      <div id='routeStats' class='history-grid route-stats'></div>
+
+      <div class='summary-actions history-actions'>
+        <button id='closeRouteBtn' class='btn btn-secondary' type='button'>ЗАКРЫТЬ</button>
+      </div>
+    </div>
+  </div>
+
   <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
   <script src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'></script>
   <script>
@@ -928,11 +978,15 @@
     let restoredDraft = false;
     let lastCalories = 0;
     let historyPreviewMaps = [];
+    let routeDetailMap = null;
+    let activeRouteRide = null;
 
     let speed = 0;
     let maxSpeed = 0;
     let totalElevation = 0;
+    let totalDescent = 0;
     let currentSlope = 0;
+    let pauseCount = 0;
     let seconds = 0;
     let moveSeconds = 0;
     let distance = 0;
@@ -983,7 +1037,14 @@
       historyList: document.getElementById('historyList'),
       historyCount: document.getElementById('historyCount'),
       closeHistoryBtn: document.getElementById('closeHistoryBtn'),
-      clearHistoryBtn: document.getElementById('clearHistoryBtn')
+      clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+      routeModal: document.getElementById('routeModal'),
+      routeMap: document.getElementById('routeMap'),
+      routeTitle: document.getElementById('routeTitle'),
+      routeSubtitle: document.getElementById('routeSubtitle'),
+      routeRibbon: document.getElementById('routeRibbon'),
+      routeStats: document.getElementById('routeStats'),
+      closeRouteBtn: document.getElementById('closeRouteBtn')
     };
 
     function showNotification(text, type = 'info') {
@@ -1015,6 +1076,180 @@
 
     function setStoredHistory(history) {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function parseDistanceKm(value) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+
+      if (typeof value !== 'string') {
+        return 0;
+      }
+
+      const match = value.replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+      return match ? parseFloat(match[0]) : 0;
+    }
+
+    function parseDurationSeconds(value) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+
+      if (typeof value !== 'string') {
+        return 0;
+      }
+
+      const parts = value.trim().split(':').map((part) => parseInt(part, 10));
+      if (parts.some((part) => Number.isNaN(part))) {
+        return 0;
+      }
+
+      if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+      }
+
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+
+      return 0;
+    }
+
+    function formatNullableSpeed(value) {
+      if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
+        return 'Н/Д';
+      }
+
+      const numericValue = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+      if (!Number.isFinite(numericValue)) {
+        return 'Н/Д';
+      }
+
+      return `${numericValue.toFixed(1)} км/ч`;
+    }
+
+    function formatNullableInteger(value, suffix = '') {
+      if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
+        return 'Н/Д';
+      }
+
+      const numericValue = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+      if (!Number.isFinite(numericValue)) {
+        return 'Н/Д';
+      }
+
+      return `${Math.round(numericValue)}${suffix}`;
+    }
+
+    function formatNullableDuration(value) {
+      if (value === null || value === undefined || value === '') {
+        return 'Н/Д';
+      }
+
+      const secondsValue = typeof value === 'number' ? value : parseDurationSeconds(value);
+      if (!Number.isFinite(secondsValue)) {
+        return 'Н/Д';
+      }
+
+      return formatTime(Math.max(0, Math.round(secondsValue)));
+    }
+
+    function getRideCoordinates(ride) {
+      if (Array.isArray(ride.coordinates) && ride.coordinates.length > 0) {
+        return ride.coordinates;
+      }
+
+      if (Array.isArray(ride.pathCoordinates) && ride.pathCoordinates.length > 0) {
+        return ride.pathCoordinates;
+      }
+
+      if (Array.isArray(ride.routePoints) && ride.routePoints.length > 0) {
+        return ride.routePoints.map((point) => [point.lat, point.lng ?? point.lon]);
+      }
+
+      return [];
+    }
+
+    function getRideDistanceKm(ride) {
+      if (Number.isFinite(ride.distanceKm)) {
+        return ride.distanceKm;
+      }
+
+      if (Number.isFinite(ride.distanceMeters)) {
+        return ride.distanceMeters / 1000;
+      }
+
+      return parseDistanceKm(ride.distance);
+    }
+
+    function getRideDurationSeconds(ride) {
+      if (Number.isFinite(ride.seconds)) {
+        return ride.seconds;
+      }
+
+      return parseDurationSeconds(ride.time);
+    }
+
+    function getRideMovingSeconds(ride) {
+      if (Number.isFinite(ride.moveSeconds)) {
+        return ride.moveSeconds;
+      }
+
+      if (Number.isFinite(ride.movingSeconds)) {
+        return ride.movingSeconds;
+      }
+
+      return parseDurationSeconds(ride.moveTime || ride.moveTimeText || ride.time);
+    }
+
+    function getRideCalories(ride) {
+      if (Number.isFinite(ride.calories)) {
+        return ride.calories;
+      }
+
+      return Math.floor(USER_WEIGHT_KG * getRideDistanceKm(ride) * 0.5);
+    }
+
+    function getSpeedStatsFromSamples(samples) {
+      const validSamples = Array.isArray(samples) ? samples.filter((value) => Number.isFinite(value)) : [];
+      const positiveSamples = validSamples.filter((value) => value > 0);
+      const avg = validSamples.length > 0 ? validSamples.reduce((sum, value) => sum + value, 0) / validSamples.length : null;
+
+      return {
+        avg,
+        min: positiveSamples.length > 0 ? Math.min(...positiveSamples) : null,
+        max: validSamples.length > 0 ? Math.max(...validSamples) : null,
+      };
+    }
+
+    function getRideSpeedStats(ride) {
+      const samples = Array.isArray(ride.speedHistory) ? ride.speedHistory.filter((value) => Number.isFinite(value)) : [];
+      const stats = getSpeedStatsFromSamples(samples);
+      const fallbackAvg = typeof ride.avgSpeed === 'string' ? parseFloat(ride.avgSpeed.replace(',', '.')) : ride.avgSpeed;
+      const fallbackMax = typeof ride.maxSpeed === 'string' ? parseFloat(ride.maxSpeed.replace(',', '.')) : ride.maxSpeed;
+      return {
+        avg: stats.avg ?? (Number.isFinite(fallbackAvg) ? fallbackAvg : null),
+        min: stats.min,
+        max: stats.max ?? (Number.isFinite(fallbackMax) ? fallbackMax : null),
+      };
+    }
+
+    function getRideElevationStats(ride) {
+      const gain = Number.isFinite(ride.elevationGain) ? ride.elevationGain : Number.isFinite(ride.totalElevation) ? ride.totalElevation : null;
+      const loss = Number.isFinite(ride.elevationLoss) ? ride.elevationLoss : Number.isFinite(ride.totalDescent) ? ride.totalDescent : null;
+      return { gain, loss };
+    }
+
+    function getRidePauseStats(ride) {
+      const pauseSeconds = Number.isFinite(ride.pauseSeconds)
+        ? ride.pauseSeconds
+        : Math.max(getRideDurationSeconds(ride) - getRideMovingSeconds(ride), 0);
+
+      return {
+        count: Number.isFinite(ride.pauseCount) ? ride.pauseCount : null,
+        duration: pauseSeconds,
+      };
     }
 
     function createHistoryStat(label, value) {
@@ -1073,6 +1308,67 @@
       historyPreviewMaps = [];
     }
 
+    function normalizeHistoryRide(ride) {
+      const coordinates = getRideCoordinates(ride);
+      const speedStats = getRideSpeedStats(ride);
+      const elevationStats = getRideElevationStats(ride);
+      const pauseStats = getRidePauseStats(ride);
+      const distanceKm = getRideDistanceKm(ride);
+      const totalSeconds = getRideDurationSeconds(ride);
+      const movingSeconds = getRideMovingSeconds(ride);
+      const calories = getRideCalories(ride);
+
+      return {
+        ...ride,
+        coordinates,
+        distanceKm,
+        seconds: totalSeconds,
+        moveSeconds: movingSeconds,
+        calories,
+        speedAvg: speedStats.avg,
+        speedMin: speedStats.min,
+        speedMax: speedStats.max,
+        elevationGain: elevationStats.gain,
+        elevationLoss: elevationStats.loss,
+        pauseCount: pauseStats.count,
+        pauseSeconds: pauseStats.duration,
+      };
+    }
+
+    function getRideStatEntries(ride) {
+      const movingSeconds = Number.isFinite(ride.moveSeconds) ? ride.moveSeconds : 0;
+      const speedStats = getRideSpeedStats(ride);
+      const pauseStats = getRidePauseStats(ride);
+      const elevationStats = getRideElevationStats(ride);
+      const distanceKm = getRideDistanceKm(ride);
+      const calories = getRideCalories(ride);
+      const pauseLabel = pauseStats.count === null
+        ? formatNullableDuration(pauseStats.duration)
+        : `${pauseStats.count} × ${formatNullableDuration(pauseStats.duration)}`;
+
+      return [
+        ['Время поездки', formatNullableDuration(ride.seconds)],
+        ['В движении', formatNullableDuration(movingSeconds)],
+        ['Паузы', pauseLabel],
+        ['Дистанция', `${distanceKm.toFixed(2)} км`],
+        ['Калории', `${calories} ккал`],
+        ['Средняя скорость', speedStats.avg === null ? 'Н/Д' : `${speedStats.avg.toFixed(1)} км/ч`],
+        ['Мин. скорость', formatNullableSpeed(speedStats.min)],
+        ['Макс. скорость', formatNullableSpeed(speedStats.max)],
+        ['Набор высоты', elevationStats.gain === null ? 'Н/Д' : `${Math.round(elevationStats.gain)} м`],
+        ['Спуск', elevationStats.loss === null ? 'Н/Д' : `${Math.round(elevationStats.loss)} м`],
+      ];
+    }
+
+    function renderRideStats(target, ride) {
+      if (!target) return;
+      target.innerHTML = '';
+
+      getRideStatEntries(ride).forEach(([label, value]) => {
+        target.appendChild(createHistoryStat(label, value));
+      });
+    }
+
     function createRoutePreviewMap(containerId, coordinates) {
       const container = document.getElementById(containerId);
       if (!container) return null;
@@ -1104,12 +1400,91 @@
         color: '#00d2ff',
         weight: 4,
         opacity: 0.95,
-        lineCap: 'round'
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round'
       }).addTo(previewMap);
 
       previewMap.fitBounds(route.getBounds(), { padding: [16, 16] });
       requestAnimationFrame(() => previewMap.invalidateSize());
       return previewMap;
+    }
+
+    function clearRouteDetailMap() {
+      if (routeDetailMap) {
+        routeDetailMap.remove();
+        routeDetailMap = null;
+      }
+    }
+
+    function buildRouteDetailMap(ride) {
+      clearRouteDetailMap();
+
+      const coordinates = getRideCoordinates(ride);
+      if (!els.routeMap) return;
+
+      els.routeMap.classList.remove('empty');
+      els.routeMap.innerHTML = '';
+
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        els.routeMap.classList.add('empty');
+        els.routeMap.innerHTML = '<div style="display:grid;place-items:center;height:100%;color:rgba(238,244,255,0.66);padding:16px;text-align:center;">Маршрут не сохранён для этой поездки</div>';
+        return;
+      }
+
+      routeDetailMap = L.map('routeMap', {
+        zoomControl: true,
+        attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        touchZoom: true,
+        keyboard: true,
+        preferCanvas: true
+      }).setView(coordinates[0], 14);
+
+      L.tileLayer(ROUTE_TILE_URL, {
+        crossOrigin: true
+      }).addTo(routeDetailMap);
+
+      const route = L.polyline(coordinates, {
+        color: '#00d2ff',
+        weight: 5,
+        opacity: 0.96,
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(routeDetailMap);
+
+      routeDetailMap.fitBounds(route.getBounds(), { padding: [24, 24] });
+      requestAnimationFrame(() => routeDetailMap.invalidateSize());
+    }
+
+    function openRouteModal(ride) {
+      activeRouteRide = normalizeHistoryRide(ride);
+
+      if (els.routeTitle) {
+        els.routeTitle.textContent = formatHistoryTitle(activeRouteRide);
+      }
+
+      if (els.routeSubtitle) {
+        const dateText = activeRouteRide.dateLabel || activeRouteRide.date || 'Сохранённый маршрут';
+        els.routeSubtitle.textContent = `Сохранено ${dateText}. Трек можно увеличить и рассмотреть подробнее.`;
+      }
+
+      if (els.routeRibbon) {
+        els.routeRibbon.textContent = activeRouteRide.time || formatNullableDuration(activeRouteRide.seconds);
+      }
+
+      renderRideStats(els.routeStats, activeRouteRide);
+      els.routeModal.classList.add('active');
+      setTimeout(() => buildRouteDetailMap(activeRouteRide), 120);
+    }
+
+    function closeRouteModal() {
+      els.routeModal.classList.remove('active');
+      clearRouteDetailMap();
+      activeRouteRide = null;
     }
 
     function renderHistoryList() {
@@ -1141,12 +1516,14 @@
       }
 
       history.forEach((ride, index) => {
+        const normalizedRide = normalizeHistoryRide(ride);
         const card = document.createElement('article');
         card.className = 'history-card';
 
         const mapBox = document.createElement('div');
         mapBox.className = 'history-map';
         mapBox.id = `history-map-${index}`;
+        mapBox.title = 'Открыть маршрут';
 
         const body = document.createElement('div');
         body.className = 'history-body';
@@ -1167,24 +1544,25 @@
 
         const ribbon = document.createElement('div');
         ribbon.className = 'share-ribbon';
-        ribbon.textContent = ride.time || '00:00';
+        ribbon.textContent = normalizedRide.time || formatNullableDuration(normalizedRide.seconds);
 
         top.append(info, ribbon);
 
         const grid = document.createElement('div');
         grid.className = 'history-grid';
-        grid.append(
-          createHistoryStat('Дистанция', ride.distance || '0.00 км'),
-          createHistoryStat('Калории', `${ride.calories ?? 0} ккал`),
-          createHistoryStat('Средняя скорость', `${ride.avgSpeed || '0.0'} км/ч`),
-          createHistoryStat('Движение', ride.moveTime || ride.time || '00:00')
-        );
+        getRideStatEntries(normalizedRide).slice(0, 8).forEach(([label, value]) => {
+          grid.appendChild(createHistoryStat(label, value));
+        });
 
         body.append(top, grid);
         card.append(mapBox, body);
         els.historyList.appendChild(card);
 
-        const previewMap = createRoutePreviewMap(mapBox.id, ride.coordinates);
+        mapBox.addEventListener('click', () => {
+          openRouteModal(normalizedRide);
+        });
+
+        const previewMap = createRoutePreviewMap(mapBox.id, normalizedRide.coordinates);
         if (previewMap) {
           historyPreviewMaps.push(previewMap);
         }
@@ -1219,6 +1597,7 @@
         color: '#00d2ff',
         weight: 6,
         opacity: 0.9,
+        smoothFactor: 0,
         lineCap: 'round'
       }).addTo(map);
 
@@ -1250,14 +1629,16 @@
     function snapshotActiveRide() {
       return {
         seconds,
-        moveSeconds,
-        distance,
-        maxSpeed,
-        totalElevation,
-        currentSlope,
-        speedHistory,
-        pathCoordinates,
-        lastLat,
+      moveSeconds,
+      distance,
+      maxSpeed,
+      totalElevation,
+      totalDescent,
+      currentSlope,
+      pauseCount,
+      speedHistory,
+      pathCoordinates,
+      lastLat,
         lastLon,
         lastAlt,
         savedAt: new Date().toISOString()
@@ -1347,6 +1728,7 @@
         els.gpsStatus.style.borderColor = 'rgba(0, 255, 157, 0.3)';
       } else if (!isMoving && !isPaused && seconds > 3) {
         isPaused = true;
+        pauseCount++;
         els.pauseIndicator.classList.remove('hidden');
         els.speedWrapper.classList.add('paused');
         els.gpsStatus.textContent = 'ПАУЗА';
@@ -1373,6 +1755,7 @@
           if (dist > 1) {
             const elevChange = alt - lastAlt;
             if (elevChange > 0) totalElevation += elevChange;
+            if (elevChange < 0) totalDescent += Math.abs(elevChange);
             currentSlope = ((elevChange / dist) * 100).toFixed(1);
           }
         } else {
@@ -1426,7 +1809,9 @@
       distance = data.distance ?? 0;
       maxSpeed = data.maxSpeed ?? 0;
       totalElevation = data.totalElevation ?? 0;
+      totalDescent = data.totalDescent ?? 0;
       currentSlope = data.currentSlope ?? 0;
+      pauseCount = data.pauseCount ?? 0;
       speedHistory = Array.isArray(data.speedHistory) ? data.speedHistory : [];
       pathCoordinates = Array.isArray(data.pathCoordinates) ? data.pathCoordinates : [];
       lastLat = data.lastLat ?? (pathCoordinates.length ? pathCoordinates[pathCoordinates.length - 1][0] : null);
@@ -1523,6 +1908,8 @@
         lastAlt = null;
         maxSpeed = 0;
         totalElevation = 0;
+        totalDescent = 0;
+        pauseCount = 0;
         distance = 0;
         seconds = 0;
         moveSeconds = 0;
@@ -1617,7 +2004,7 @@
         }).addTo(summaryMap);
 
         if (pathCoordinates.length > 0) {
-          summaryPolyline = L.polyline(pathCoordinates, { color: '#00d2ff', weight: 4 }).addTo(summaryMap);
+          summaryPolyline = L.polyline(pathCoordinates, { color: '#00d2ff', weight: 4, smoothFactor: 0, lineCap: 'round', lineJoin: 'round' }).addTo(summaryMap);
           summaryMap.fitBounds(summaryPolyline.getBounds(), { padding: [30, 30] });
         }
         requestAnimationFrame(() => summaryMap.invalidateSize());
@@ -1711,7 +2098,17 @@
         closeHistoryModal();
       }
     });
+    els.closeRouteBtn.addEventListener('click', closeRouteModal);
+    els.routeModal.addEventListener('click', (event) => {
+      if (event.target === els.routeModal) {
+        closeRouteModal();
+      }
+    });
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && els.routeModal.classList.contains('active')) {
+        closeRouteModal();
+        return;
+      }
       if (event.key === 'Escape' && els.historyModal.classList.contains('active')) {
         closeHistoryModal();
       }
@@ -1721,13 +2118,28 @@
     els.stopBtn.addEventListener('click', stopRide);
     els.shareBtn.addEventListener('click', shareResult);
     els.saveBtn.addEventListener('click', () => {
+      const speedStats = getSpeedStatsFromSamples(speedHistory);
+      const pauseSeconds = Math.max(seconds - moveSeconds, 0);
       const rideData = {
-        distance: els.shareDist.textContent,
-        time: els.shareTime.textContent,
-        avgSpeed: els.shareAvgSpeed.textContent,
-        moveTime: els.statMoveTime.textContent,
+        time: formatTime(seconds),
+        moveTime: formatTime(moveSeconds),
+        distance: `${(distance / 1000).toFixed(2)} км`,
+        distanceMeters: distance,
+        distanceKm: Number((distance / 1000).toFixed(2)),
+        seconds,
+        moveSeconds,
+        avgSpeed: Number(speedStats.avg?.toFixed(1) || 0),
+        minSpeed: speedStats.min,
+        maxSpeed: speedStats.max ?? maxSpeed,
         calories: lastCalories,
-        coordinates: pathCoordinates,
+        totalElevation,
+        totalDescent,
+        pauseCount,
+        pauseSeconds,
+        speedHistory: [...speedHistory],
+        coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
+        pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
+        routePoints: pathCoordinates.map(([lat, lon]) => ({ lat, lng: lon })),
         date: new Date().toLocaleDateString('ru-RU'),
         dateLabel: new Date().toLocaleString('ru-RU'),
         savedAt: new Date().toISOString()
