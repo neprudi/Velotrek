@@ -1161,11 +1161,16 @@
     let lastLat = null;
     let lastLon = null;
     let lastAlt = null;
+    let lastTimestamp = null;
     let timerInt = null;
     let toastTimers = [];
 
     const USER_WEIGHT_KG = 75;
     const PAUSE_THRESHOLD = 3.0;
+    const RESUME_THRESHOLD = 3.8;
+    const MAX_VALID_SPEED_KMH = 90;
+    const MIN_TRACK_POINT_DISTANCE_M = 1.5;
+    const MIN_ELEVATION_DELTA_M = 1.5;
     const ACTIVE_RIDE_KEY = 'velotrek_active_ride';
     const HISTORY_KEY = 'velo_history';
     const ROUTE_TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
@@ -1371,12 +1376,43 @@
       return parseDurationSeconds(ride.moveTime || ride.moveTimeText || ride.time);
     }
 
+    function calculateAverageSpeedKmh(distanceKm, movingSeconds) {
+      if (!Number.isFinite(distanceKm) || !Number.isFinite(movingSeconds) || distanceKm <= 0 || movingSeconds <= 0) {
+        return null;
+      }
+
+      return distanceKm / (movingSeconds / 3600);
+    }
+
+    function estimateCyclingCaloriesKcal(distanceKm, movingSeconds, avgSpeedKmh) {
+      if (!Number.isFinite(movingSeconds) || movingSeconds <= 0) {
+        return 0;
+      }
+
+      const speed = Number.isFinite(avgSpeedKmh) && avgSpeedKmh > 0
+        ? avgSpeedKmh
+        : calculateAverageSpeedKmh(distanceKm, movingSeconds) ?? 0;
+
+      let met = 6.0;
+      if (speed < 10) met = 4.0;
+      else if (speed < 16) met = 6.8;
+      else if (speed < 19) met = 8.0;
+      else if (speed < 22) met = 10.0;
+      else if (speed < 26) met = 12.0;
+      else met = 14.0;
+
+      return Math.max(1, Math.round(met * USER_WEIGHT_KG * (movingSeconds / 3600)));
+    }
+
     function getRideCalories(ride) {
-      if (Number.isFinite(ride.calories)) {
+      if (Number.isFinite(ride.calories) && ride.calories > 0) {
         return ride.calories;
       }
 
-      return Math.floor(USER_WEIGHT_KG * getRideDistanceKm(ride) * 0.5);
+      const distanceKm = getRideDistanceKm(ride);
+      const movingSeconds = getRideMovingSeconds(ride);
+      const speedStats = getRideSpeedStats(ride);
+      return estimateCyclingCaloriesKcal(distanceKm, movingSeconds, speedStats.avg);
     }
 
     function getSpeedStatsFromSamples(samples) {
@@ -1397,8 +1433,9 @@
       const fallbackAvg = typeof ride.avgSpeed === 'string' ? parseFloat(ride.avgSpeed.replace(',', '.')) : ride.avgSpeed;
       const fallbackMin = typeof ride.minSpeed === 'string' ? parseFloat(ride.minSpeed.replace(',', '.')) : ride.minSpeed;
       const fallbackMax = typeof ride.maxSpeed === 'string' ? parseFloat(ride.maxSpeed.replace(',', '.')) : ride.maxSpeed;
+      const derivedAvg = calculateAverageSpeedKmh(getRideDistanceKm(ride), getRideMovingSeconds(ride));
       return {
-        avg: stats.avg ?? (Number.isFinite(fallbackAvg) ? fallbackAvg : null),
+        avg: derivedAvg ?? stats.avg ?? (Number.isFinite(fallbackAvg) ? fallbackAvg : null),
         min: stats.min ?? (Number.isFinite(fallbackMin) ? fallbackMin : null),
         max: stats.max ?? (Number.isFinite(fallbackMax) ? fallbackMax : null),
       };
@@ -1478,24 +1515,59 @@
     }
 
     function smoothRouteCoordinates(coordinates) {
-      if (!Array.isArray(coordinates) || coordinates.length < 4) {
-        return Array.isArray(coordinates) ? coordinates.map((point) => [...point]) : [];
+      if (!Array.isArray(coordinates) || coordinates.length === 0) {
+        return [];
       }
 
-      const smoothed = [coordinates[0]];
-      for (let index = 0; index < coordinates.length - 1; index += 1) {
-        const [lat1, lng1] = coordinates[index];
-        const [lat2, lng2] = coordinates[index + 1];
+      const cleaned = [];
+      let previousPoint = null;
+
+      for (const point of coordinates) {
+        if (!Array.isArray(point) || point.length < 2) {
+          continue;
+        }
+
+        const lat = Number(point[0]);
+        const lng = Number(point[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          continue;
+        }
+
+        const nextPoint = [lat, lng];
+        if (!previousPoint) {
+          cleaned.push(nextPoint);
+          previousPoint = nextPoint;
+          continue;
+        }
+
+        const jumpMeters = getDistanceFromLatLonInM(previousPoint[0], previousPoint[1], lat, lng);
+        if (jumpMeters < MIN_TRACK_POINT_DISTANCE_M) {
+          continue;
+        }
+
+        if (jumpMeters > 250) {
+          continue;
+        }
+
+        cleaned.push(nextPoint);
+        previousPoint = nextPoint;
+      }
+
+      if (cleaned.length < 4) {
+        return cleaned;
+      }
+
+      const smoothed = [cleaned[0]];
+      for (let index = 1; index < cleaned.length - 1; index += 1) {
+        const [prevLat, prevLng] = cleaned[index - 1];
+        const [currLat, currLng] = cleaned[index];
+        const [nextLat, nextLng] = cleaned[index + 1];
         smoothed.push([
-          lat1 * 0.72 + lat2 * 0.28,
-          lng1 * 0.72 + lng2 * 0.28,
-        ]);
-        smoothed.push([
-          lat1 * 0.28 + lat2 * 0.72,
-          lng1 * 0.28 + lng2 * 0.72,
+          prevLat * 0.2 + currLat * 0.6 + nextLat * 0.2,
+          prevLng * 0.2 + currLng * 0.6 + nextLng * 0.2,
         ]);
       }
-      smoothed.push(coordinates[coordinates.length - 1]);
+      smoothed.push(cleaned[cleaned.length - 1]);
       return smoothed;
     }
 
@@ -1913,6 +1985,7 @@
     function buildCurrentRidePayload() {
       const speedStats = getSpeedStatsFromSamples(speedHistory);
       const distanceKm = Number((distance / 1000).toFixed(2));
+      const avgSpeed = calculateAverageSpeedKmh(distanceKm, moveSeconds) ?? speedStats.avg ?? 0;
 
       return normalizeHistoryRide({
         time: formatTime(seconds),
@@ -1922,7 +1995,7 @@
         distanceKm,
         seconds,
         moveSeconds,
-        avgSpeed: speedStats.avg ?? 0,
+        avgSpeed: Number(avgSpeed.toFixed(1)),
         minSpeed: speedStats.min,
         maxSpeed: speedStats.max ?? maxSpeed,
         calories: lastCalories,
@@ -1934,6 +2007,7 @@
         coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
         pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
         routePoints: pathCoordinates.map(([lat, lon]) => ({ lat, lng: lon })),
+        lastTimestamp,
         date: new Date().toLocaleDateString('ru-RU'),
         dateLabel: new Date().toLocaleString('ru-RU'),
         savedAt: new Date().toISOString(),
@@ -2278,6 +2352,130 @@
       }
     }
 
+    function handlePositionEnhanced(position) {
+      if (!isRecording) return;
+      if (position.coords.accuracy > 30) return;
+
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const alt = position.coords.altitude;
+      const timestamp = Number.isFinite(position.timestamp) ? position.timestamp : Date.now();
+      const hasPreviousFix = lastLat !== null && lastLon !== null && lastTimestamp !== null;
+      const deltaSeconds = hasPreviousFix ? Math.max((timestamp - lastTimestamp) / 1000, 1) : null;
+      const segmentDistance = hasPreviousFix ? getDistanceFromLatLonInM(lastLat, lastLon, lat, lon) : 0;
+      const reportedSpeedKmh = Number.isFinite(position.coords.speed) && position.coords.speed >= 0
+        ? position.coords.speed * 3.6
+        : null;
+      const derivedSpeedKmh = deltaSeconds ? (segmentDistance / deltaSeconds) * 3.6 : null;
+
+      if (hasPreviousFix && deltaSeconds !== null && segmentDistance > 20) {
+        const unrealSpeed = derivedSpeedKmh !== null && derivedSpeedKmh > MAX_VALID_SPEED_KMH;
+        const impossibleJump = reportedSpeedKmh !== null && reportedSpeedKmh > MAX_VALID_SPEED_KMH && segmentDistance > 120;
+        if (unrealSpeed || impossibleJump) {
+          return;
+        }
+      }
+
+      let speedKmh = reportedSpeedKmh ?? 0;
+      if (derivedSpeedKmh !== null && Number.isFinite(derivedSpeedKmh) && derivedSpeedKmh >= 0) {
+        speedKmh = speedKmh > 0 ? (speedKmh * 0.65 + derivedSpeedKmh * 0.35) : derivedSpeedKmh;
+      }
+      speedKmh = Math.max(0, Math.min(speedKmh, MAX_VALID_SPEED_KMH));
+
+      const currentSpeedKmh = speedKmh.toFixed(1);
+      const isMoving = speedKmh > PAUSE_THRESHOLD;
+
+      if (isMoving && isPaused && speedKmh > RESUME_THRESHOLD) {
+        isPaused = false;
+        els.pauseIndicator.classList.add('hidden');
+        els.speedWrapper.classList.remove('paused');
+        els.gpsStatus.textContent = 'GPS ACTIVE';
+        els.gpsStatus.style.backgroundColor = 'rgba(0, 255, 157, 0.2)';
+        els.gpsStatus.style.color = '#00cc7a';
+        els.gpsStatus.style.borderColor = 'rgba(0, 255, 157, 0.3)';
+      } else if (!isMoving && !isPaused && seconds > 3) {
+        isPaused = true;
+        pauseCount++;
+        els.pauseIndicator.classList.remove('hidden');
+        els.speedWrapper.classList.add('paused');
+        els.gpsStatus.textContent = 'ПАУЗА';
+        els.gpsStatus.style.backgroundColor = 'rgba(255, 159, 45, 0.2)';
+        els.gpsStatus.style.color = 'var(--orange)';
+        els.gpsStatus.style.borderColor = 'rgba(255, 159, 45, 0.3)';
+      }
+
+      if (isPaused) {
+        lastLat = lat;
+        lastLon = lon;
+        lastAlt = alt;
+        lastTimestamp = timestamp;
+        els.speed.textContent = '0.0';
+        els.elev.textContent = `+${Math.floor(totalElevation)} м`;
+        els.moveTime.textContent = formatTime(moveSeconds);
+        if (currentSlope > 0.5) {
+          els.slope.textContent = `+${currentSlope}%`;
+          els.slope.className = 'metric-value slope-up';
+        } else if (currentSlope < -0.5) {
+          els.slope.textContent = `${currentSlope}%`;
+          els.slope.className = 'metric-value slope-down';
+        } else {
+          els.slope.textContent = '0%';
+          els.slope.className = 'metric-value';
+        }
+        return;
+      }
+
+      const newLatLng = new L.LatLng(lat, lon);
+      marker.setLatLng(newLatLng);
+      polyline.addLatLng(newLatLng);
+      pathCoordinates.push([lat, lon]);
+      map.panTo(newLatLng);
+
+      if (speedKmh > maxSpeed) {
+        maxSpeed = speedKmh;
+        els.maxSpeed.textContent = Math.floor(maxSpeed);
+      }
+
+      if (hasPreviousFix && deltaSeconds !== null) {
+        distance += segmentDistance;
+        moveSeconds += Math.max(1, Math.round(deltaSeconds));
+        speedHistory.push(speedKmh);
+
+        if (alt !== null && lastAlt !== null) {
+          const elevChange = alt - lastAlt;
+          if (segmentDistance > 3 && Math.abs(elevChange) >= MIN_ELEVATION_DELTA_M) {
+            if (elevChange > 0) totalElevation += elevChange;
+            if (elevChange < 0) totalDescent += Math.abs(elevChange);
+            currentSlope = ((elevChange / segmentDistance) * 100).toFixed(1);
+          }
+        } else {
+          currentSlope = 0;
+        }
+      } else {
+        currentSlope = 0;
+      }
+
+      lastLat = lat;
+      lastLon = lon;
+      lastAlt = alt;
+      lastTimestamp = timestamp;
+
+      els.speed.textContent = currentSpeedKmh;
+      els.elev.textContent = `+${Math.floor(totalElevation)} м`;
+      els.moveTime.textContent = formatTime(moveSeconds);
+
+      if (currentSlope > 0.5) {
+        els.slope.textContent = `+${currentSlope}%`;
+        els.slope.className = 'metric-value slope-up';
+      } else if (currentSlope < -0.5) {
+        els.slope.textContent = `${currentSlope}%`;
+        els.slope.className = 'metric-value slope-down';
+      } else {
+        els.slope.textContent = '0%';
+        els.slope.className = 'metric-value';
+      }
+    }
+
     function resetSessionUiToIdle() {
       els.stopBtn.classList.remove('visible');
       els.startBtn.style.display = 'inline-flex';
@@ -2306,6 +2504,7 @@
       lastLat = data.lastLat ?? (pathCoordinates.length ? pathCoordinates[pathCoordinates.length - 1][0] : null);
       lastLon = data.lastLon ?? (pathCoordinates.length ? pathCoordinates[pathCoordinates.length - 1][1] : null);
       lastAlt = data.lastAlt ?? null;
+      lastTimestamp = data.lastTimestamp ?? null;
 
       polyline.setLatLngs(pathCoordinates);
       if (pathCoordinates.length > 0) {
@@ -2368,9 +2567,12 @@
     }
 
     function updateSummaryValues() {
-      const avg = speedHistory.length ? (speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length).toFixed(1) : 0;
+      const distanceKm = distance / 1000;
+      const avgEstimate = calculateAverageSpeedKmh(distanceKm, moveSeconds);
+      const fallbackAvg = speedHistory.length ? (speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length) : 0;
+      const avg = (avgEstimate ?? fallbackAvg).toFixed(1);
       const distKm = (distance / 1000).toFixed(2);
-      const calories = Math.floor(USER_WEIGHT_KG * parseFloat(distKm) * 0.5);
+      const calories = estimateCyclingCaloriesKcal(distanceKm, moveSeconds, avgEstimate ?? fallbackAvg);
       lastCalories = calories;
 
       els.shareTime.textContent = formatTime(seconds);
@@ -2395,6 +2597,7 @@
         lastLat = null;
         lastLon = null;
         lastAlt = null;
+        lastTimestamp = null;
         maxSpeed = 0;
         totalElevation = 0;
         totalDescent = 0;
@@ -2435,7 +2638,7 @@
         showNotification('Запись началась. Не блокируйте экран во время поездки.', 'warning');
       }
 
-      watchId = navigator.geolocation.watchPosition(handlePosition, (err) => {
+      watchId = navigator.geolocation.watchPosition(handlePositionEnhanced, (err) => {
         console.error(err);
       }, {
         enableHighAccuracy: true,
@@ -2604,6 +2807,7 @@
     });
     els.saveBtn.addEventListener('click', () => {
       const speedStats = getSpeedStatsFromSamples(speedHistory);
+      const avgSpeed = calculateAverageSpeedKmh(distance / 1000, moveSeconds) ?? speedStats.avg ?? 0;
       const pauseSeconds = Math.max(seconds - moveSeconds, 0);
       const rideData = {
         time: formatTime(seconds),
@@ -2613,7 +2817,7 @@
         distanceKm: Number((distance / 1000).toFixed(2)),
         seconds,
         moveSeconds,
-        avgSpeed: Number(speedStats.avg?.toFixed(1) || 0),
+        avgSpeed: Number(avgSpeed.toFixed(1)),
         minSpeed: speedStats.min,
         maxSpeed: speedStats.max ?? maxSpeed,
         calories: lastCalories,
@@ -2625,6 +2829,7 @@
         coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
         pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
         routePoints: pathCoordinates.map(([lat, lon]) => ({ lat, lng: lon })),
+        lastTimestamp,
         date: new Date().toLocaleDateString('ru-RU'),
         dateLabel: new Date().toLocaleString('ru-RU'),
         savedAt: new Date().toISOString()
