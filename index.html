@@ -155,6 +155,16 @@
     .pill.pause::before { background: var(--orange); box-shadow: 0 0 16px rgba(255, 159, 45, 0.45); }
     .pill.error::before { background: var(--red); box-shadow: 0 0 16px rgba(255, 92, 122, 0.45); }
     .pill.hidden { display: none; }
+    .pill.pill-button {
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .pill.pill-button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(0, 210, 255, 0.22);
+      background: rgba(0, 210, 255, 0.08);
+    }
 
     .main {
       display: grid;
@@ -397,9 +407,11 @@
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 12px;
       background: rgba(3, 7, 12, 0.74);
       backdrop-filter: blur(14px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
       z-index: 20;
     }
 
@@ -409,6 +421,7 @@
       width: min(920px, 100%);
       max-height: min(92dvh, 1000px);
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
       border-radius: 28px;
       border: 1px solid rgba(255,255,255,0.08);
       background: linear-gradient(180deg, rgba(15, 21, 30, 0.98), rgba(10, 14, 20, 0.98));
@@ -440,6 +453,7 @@
 
     .share-card {
       overflow: hidden;
+      min-height: 0;
       background:
         radial-gradient(circle at top left, rgba(0, 210, 255, 0.14), transparent 24%),
         radial-gradient(circle at top right, rgba(0, 255, 157, 0.12), transparent 22%),
@@ -485,12 +499,14 @@
       gap: 14px;
       padding: 14px;
       flex: 1;
+      min-height: 0;
     }
 
     .summary-panel {
       padding: 14px;
       background: rgba(255,255,255,0.03);
       box-shadow: none;
+      min-height: 0;
     }
 
     .summary-map {
@@ -511,6 +527,144 @@
       margin-top: 14px;
       display: grid;
       gap: 10px;
+    }
+
+    .history-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .history-head h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+
+    .history-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .history-card {
+      display: grid;
+      grid-template-columns: 172px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background:
+        radial-gradient(circle at top left, rgba(0, 210, 255, 0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(0, 255, 157, 0.08), transparent 26%),
+        rgba(255,255,255,0.03);
+    }
+
+    .history-map {
+      height: 150px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: #11161d;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .history-map.empty {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 0.86rem;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .history-body {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .history-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .history-date {
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .history-subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.35;
+    }
+
+    .history-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .history-stat {
+      padding: 10px 11px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      min-width: 0;
+    }
+
+    .history-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .history-stat strong {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.98rem;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+      word-break: break-word;
+    }
+
+    .history-empty {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      text-align: center;
+      color: var(--muted);
+      border-radius: 22px;
+      border: 1px dashed rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      padding: 20px;
+      gap: 8px;
+    }
+
+    .history-empty strong {
+      color: var(--text);
+      font-size: 1rem;
+    }
+
+    .history-actions {
+      margin-top: 14px;
     }
 
     .summary-actions {
@@ -590,6 +744,15 @@
       .metric { padding: 10px 10px 9px; }
       .metric-label { font-size: 0.66rem; margin-bottom: 6px; }
       .metric-value { font-size: clamp(1rem, 4.8vw, 1.25rem); }
+      .summary-modal {
+        align-items: flex-start;
+        padding: 10px;
+      }
+      .summary-shell {
+        width: 100%;
+        max-height: none;
+        min-height: calc(100dvh - 20px);
+      }
       .actions-panel {
         position: fixed;
         left: 10px;
@@ -609,6 +772,11 @@
       .share-top { padding: 12px 12px 10px; flex-direction: row; align-items: center; }
       .share-top .small { display: none; }
       .summary-actions { padding: 0 12px calc(12px + env(safe-area-inset-bottom)); }
+      .history-card { grid-template-columns: 1fr; }
+      .history-map { height: 180px; }
+      .history-grid { grid-template-columns: 1fr; }
+      .history-head { margin-bottom: 10px; }
+      .history-head p { font-size: 0.86rem; }
       .toast-host { left: 10px; right: 10px; top: calc(10px + env(safe-area-inset-top)); }
     }
   </style>
@@ -626,6 +794,7 @@
           <span id='gpsStatus' class='pill'>GPS READY</span>
           <span id='pauseIndicator' class='pill pause hidden'>ПАУЗА</span>
           <span id='restoreBanner' class='pill hidden'>ПРОДОЛЖИТЬ</span>
+          <button id='historyBtn' class='pill pill-button' type='button'>ИСТОРИЯ</button>
         </div>
       </header>
 
@@ -727,6 +896,25 @@
     </div>
   </div>
 
+  <div id='historyModal' class='summary-modal' role='dialog' aria-modal='true' aria-labelledby='historyTitle'>
+    <div class='summary-shell'>
+      <div class='history-head'>
+        <div>
+          <h2 id='historyTitle'>История поездок</h2>
+          <p>Последние сохранённые поездки с миникартой маршрута и ключевыми метриками.</p>
+        </div>
+        <div id='historyCount' class='share-ribbon'>0</div>
+      </div>
+
+      <div id='historyList' class='history-list' aria-live='polite'></div>
+
+      <div class='summary-actions history-actions'>
+        <button id='closeHistoryBtn' class='btn btn-secondary' type='button'>ЗАКРЫТЬ</button>
+        <button id='clearHistoryBtn' class='btn btn-discard' type='button'>ОЧИСТИТЬ</button>
+      </div>
+    </div>
+  </div>
+
   <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
   <script src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'></script>
   <script>
@@ -738,6 +926,8 @@
     let isPaused = false;
     let wakeLock = null;
     let restoredDraft = false;
+    let lastCalories = 0;
+    let historyPreviewMaps = [];
 
     let speed = 0;
     let maxSpeed = 0;
@@ -758,10 +948,12 @@
     const PAUSE_THRESHOLD = 3.0;
     const ACTIVE_RIDE_KEY = 'velotrek_active_ride';
     const HISTORY_KEY = 'velo_history';
+    const ROUTE_TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
     const els = {
       startBtn: document.getElementById('startBtn'),
       stopBtn: document.getElementById('stopBtn'),
+      historyBtn: document.getElementById('historyBtn'),
       speed: document.getElementById('speedDisplay'),
       maxSpeed: document.getElementById('maxSpeedDisplay'),
       elev: document.getElementById('elevationDisplay'),
@@ -786,7 +978,12 @@
       statCalories: document.getElementById('statCalories'),
       shareBtn: document.getElementById('shareBtn'),
       saveBtn: document.getElementById('saveRideBtn'),
-      discardBtn: document.getElementById('discardRideBtn')
+      discardBtn: document.getElementById('discardRideBtn'),
+      historyModal: document.getElementById('historyModal'),
+      historyList: document.getElementById('historyList'),
+      historyCount: document.getElementById('historyCount'),
+      closeHistoryBtn: document.getElementById('closeHistoryBtn'),
+      clearHistoryBtn: document.getElementById('clearHistoryBtn')
     };
 
     function showNotification(text, type = 'info') {
@@ -804,6 +1001,204 @@
 
       toastTimers.push(timer);
       return toast;
+    }
+
+    function getStoredHistory() {
+      try {
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        return Array.isArray(history) ? history : [];
+      } catch (err) {
+        console.warn('Failed to read history:', err);
+        return [];
+      }
+    }
+
+    function setStoredHistory(history) {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function createHistoryStat(label, value) {
+      const stat = document.createElement('div');
+      stat.className = 'history-stat';
+
+      const statLabel = document.createElement('span');
+      statLabel.textContent = label;
+
+      const statValue = document.createElement('strong');
+      statValue.textContent = value;
+
+      stat.append(statLabel, statValue);
+      return stat;
+    }
+
+    function formatHistoryTitle(ride) {
+      if (ride.savedAt) {
+        const savedAt = new Date(ride.savedAt);
+        if (!Number.isNaN(savedAt.getTime())) {
+          return savedAt.toLocaleString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        }
+      }
+
+      return ride.date || 'Без даты';
+    }
+
+    function getHistoryTimestamp(ride) {
+      if (ride.savedAt) {
+        const savedAt = new Date(ride.savedAt);
+        if (!Number.isNaN(savedAt.getTime())) {
+          return savedAt.getTime();
+        }
+      }
+
+      return 0;
+    }
+
+    function updateHistoryBadge() {
+      const historyLength = getStoredHistory().length;
+      if (els.historyCount) {
+        els.historyCount.textContent = String(historyLength);
+      }
+      if (els.historyBtn) {
+        els.historyBtn.textContent = historyLength > 0 ? `ИСТОРИЯ · ${historyLength}` : 'ИСТОРИЯ';
+      }
+    }
+
+    function clearHistoryPreviewMaps() {
+      historyPreviewMaps.forEach((previewMap) => previewMap.remove());
+      historyPreviewMaps = [];
+    }
+
+    function createRoutePreviewMap(containerId, coordinates) {
+      const container = document.getElementById(containerId);
+      if (!container) return null;
+
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        container.classList.add('empty');
+        container.textContent = 'Маршрут не сохранён';
+        return null;
+      }
+
+      const previewMap = L.map(containerId, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        keyboard: false,
+        boxZoom: false,
+        inertia: false,
+        preferCanvas: true
+      }).setView(coordinates[0], 13);
+
+      L.tileLayer(ROUTE_TILE_URL, {
+        crossOrigin: true
+      }).addTo(previewMap);
+
+      const route = L.polyline(coordinates, {
+        color: '#00d2ff',
+        weight: 4,
+        opacity: 0.95,
+        lineCap: 'round'
+      }).addTo(previewMap);
+
+      previewMap.fitBounds(route.getBounds(), { padding: [16, 16] });
+      requestAnimationFrame(() => previewMap.invalidateSize());
+      return previewMap;
+    }
+
+    function renderHistoryList() {
+      if (!els.historyList) return;
+
+      const history = getStoredHistory()
+        .slice()
+        .sort((left, right) => {
+          return getHistoryTimestamp(right) - getHistoryTimestamp(left);
+        });
+
+      updateHistoryBadge();
+      clearHistoryPreviewMaps();
+      els.historyList.innerHTML = '';
+
+      if (history.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'history-empty';
+
+        const title = document.createElement('strong');
+        title.textContent = 'Пока нет сохранённых поездок';
+
+        const text = document.createElement('span');
+        text.textContent = 'Сохраните хотя бы один маршрут, и он появится здесь с миникартой.';
+
+        empty.append(title, text);
+        els.historyList.appendChild(empty);
+        return;
+      }
+
+      history.forEach((ride, index) => {
+        const card = document.createElement('article');
+        card.className = 'history-card';
+
+        const mapBox = document.createElement('div');
+        mapBox.className = 'history-map';
+        mapBox.id = `history-map-${index}`;
+
+        const body = document.createElement('div');
+        body.className = 'history-body';
+
+        const top = document.createElement('div');
+        top.className = 'history-top';
+
+        const info = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'history-date';
+        title.textContent = formatHistoryTitle(ride);
+
+        const subtitle = document.createElement('div');
+        subtitle.className = 'history-subtitle';
+        subtitle.textContent = ride.dateLabel || ride.date || 'Сохранённый маршрут';
+
+        info.append(title, subtitle);
+
+        const ribbon = document.createElement('div');
+        ribbon.className = 'share-ribbon';
+        ribbon.textContent = ride.time || '00:00';
+
+        top.append(info, ribbon);
+
+        const grid = document.createElement('div');
+        grid.className = 'history-grid';
+        grid.append(
+          createHistoryStat('Дистанция', ride.distance || '0.00 км'),
+          createHistoryStat('Калории', `${ride.calories ?? 0} ккал`),
+          createHistoryStat('Средняя скорость', `${ride.avgSpeed || '0.0'} км/ч`),
+          createHistoryStat('Движение', ride.moveTime || ride.time || '00:00')
+        );
+
+        body.append(top, grid);
+        card.append(mapBox, body);
+        els.historyList.appendChild(card);
+
+        const previewMap = createRoutePreviewMap(mapBox.id, ride.coordinates);
+        if (previewMap) {
+          historyPreviewMaps.push(previewMap);
+        }
+      });
+    }
+
+    function openHistoryModal() {
+      renderHistoryList();
+      els.historyModal.classList.add('active');
+    }
+
+    function closeHistoryModal() {
+      els.historyModal.classList.remove('active');
+      clearHistoryPreviewMaps();
     }
 
     function initMap() {
@@ -1102,6 +1497,7 @@
       const avg = speedHistory.length ? (speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length).toFixed(1) : 0;
       const distKm = (distance / 1000).toFixed(2);
       const calories = Math.floor(USER_WEIGHT_KG * parseFloat(distKm) * 0.5);
+      lastCalories = calories;
 
       els.shareTime.textContent = formatTime(seconds);
       els.shareAvgSpeed.textContent = avg;
@@ -1277,6 +1673,7 @@
     window.addEventListener('load', async () => {
       initMap();
       const restored = restoreActiveRideDraftIfAny();
+      updateHistoryBadge();
 
       if (!restored && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
@@ -1297,6 +1694,29 @@
       event.returnValue = '';
     });
 
+    els.historyBtn.addEventListener('click', () => {
+      openHistoryModal();
+    });
+    els.closeHistoryBtn.addEventListener('click', closeHistoryModal);
+    els.clearHistoryBtn.addEventListener('click', () => {
+      const confirmed = confirm('Очистить всю историю поездок?');
+      if (!confirmed) return;
+      setStoredHistory([]);
+      updateHistoryBadge();
+      renderHistoryList();
+      showNotification('История поездок очищена.', 'warning');
+    });
+    els.historyModal.addEventListener('click', (event) => {
+      if (event.target === els.historyModal) {
+        closeHistoryModal();
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && els.historyModal.classList.contains('active')) {
+        closeHistoryModal();
+      }
+    });
+
     els.startBtn.addEventListener('click', startRide);
     els.stopBtn.addEventListener('click', stopRide);
     els.shareBtn.addEventListener('click', shareResult);
@@ -1305,12 +1725,17 @@
         distance: els.shareDist.textContent,
         time: els.shareTime.textContent,
         avgSpeed: els.shareAvgSpeed.textContent,
+        moveTime: els.statMoveTime.textContent,
+        calories: lastCalories,
         coordinates: pathCoordinates,
-        date: new Date().toLocaleDateString()
+        date: new Date().toLocaleDateString('ru-RU'),
+        dateLabel: new Date().toLocaleString('ru-RU'),
+        savedAt: new Date().toISOString()
       };
-      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      const history = getStoredHistory();
       history.push(rideData);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      setStoredHistory(history);
+      updateHistoryBadge();
       clearActiveRideDraft();
       resetApp();
       showNotification('Маршрут сохранен в историю.', 'success');
