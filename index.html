@@ -328,6 +328,26 @@
       gap: 10px;
     }
 
+    .overview-block {
+      display: grid;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .overview-label {
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
     .metric {
       padding: 12px 12px 11px;
       border-radius: 18px;
@@ -972,6 +992,8 @@
       .speed-wrap { grid-column: 1 / -1; padding: 14px 14px 12px; }
       .speed-label { margin-bottom: 10px; }
       .mini-grid { gap: 8px; }
+      .overview-block { gap: 8px; }
+      .overview-grid { gap: 8px; }
       .metric { padding: 10px 10px 9px; }
       .metric-label { font-size: 0.66rem; margin-bottom: 6px; }
       .metric-value { font-size: clamp(1rem, 4.8vw, 1.25rem); }
@@ -1066,6 +1088,28 @@
             <div class='metric'>
               <div class='metric-label'>Движение</div>
               <div id='moveTimeDisplay' class='metric-value'>00:00</div>
+            </div>
+          </div>
+
+          <div class='overview-block'>
+            <div class='overview-label'>Отслеживаемые метрики</div>
+            <div class='overview-grid'>
+              <div class='metric'>
+                <div class='metric-label'>Дистанция</div>
+                <div id='distanceDisplay' class='metric-value'>0.00 км</div>
+              </div>
+              <div class='metric'>
+                <div class='metric-label'>Калории</div>
+                <div id='caloriesDisplay' class='metric-value'>0 ккал</div>
+              </div>
+              <div class='metric'>
+                <div class='metric-label'>Спуск</div>
+                <div id='descentDisplay' class='metric-value'>0 м</div>
+              </div>
+              <div class='metric'>
+                <div class='metric-label'>Баланс воды</div>
+                <div id='waterDisplay' class='metric-value'>0.00 л</div>
+              </div>
             </div>
           </div>
         </aside>
@@ -1238,6 +1282,10 @@
       slope: document.getElementById('slopeDisplay'),
       time: document.getElementById('timeDisplay'),
       moveTime: document.getElementById('moveTimeDisplay'),
+      distance: document.getElementById('distanceDisplay'),
+      calories: document.getElementById('caloriesDisplay'),
+      descent: document.getElementById('descentDisplay'),
+      water: document.getElementById('waterDisplay'),
       gpsStatus: document.getElementById('gpsStatus'),
       pauseIndicator: document.getElementById('pauseIndicator'),
       restoreBanner: document.getElementById('restoreBanner'),
@@ -2606,6 +2654,7 @@
       els.speed.textContent = currentSpeedKmh;
       els.elev.textContent = `+${Math.floor(totalElevation)} м`;
       els.moveTime.textContent = formatTime(moveSeconds);
+      updateLiveOverviewMetrics();
 
       if (currentSlope > 0.5) {
         els.slope.textContent = `+${currentSlope}%`;
@@ -2679,6 +2728,7 @@
         els.speed.textContent = '0.0';
         els.elev.textContent = `+${Math.floor(totalElevation)} м`;
         els.moveTime.textContent = formatTime(moveSeconds);
+        updateLiveOverviewMetrics();
         if (currentSlope > 0.5) {
           els.slope.textContent = `+${currentSlope}%`;
           els.slope.className = 'metric-value slope-up';
@@ -2735,6 +2785,7 @@
       els.speed.textContent = currentSpeedKmh;
       els.elev.textContent = `+${Math.floor(totalElevation)} м`;
       els.moveTime.textContent = formatTime(moveSeconds);
+      updateLiveOverviewMetrics();
 
       if (currentSlope > 0.5) {
         els.slope.textContent = `+${currentSlope}%`;
@@ -2792,6 +2843,7 @@
       els.moveTime.textContent = formatTime(moveSeconds);
       els.maxSpeed.textContent = Math.floor(maxSpeed);
       els.elev.textContent = `+${Math.floor(totalElevation)} м`;
+      updateLiveOverviewMetrics();
       if (currentSlope > 0.5) {
         els.slope.textContent = `+${currentSlope}%`;
         els.slope.className = 'metric-value slope-up';
@@ -2893,6 +2945,68 @@
       }
     }
 
+    function updateLiveOverviewMetrics() {
+      const distanceKm = distance / 1000;
+      const avgEstimate = calculateAverageSpeedKmh(distanceKm, moveSeconds);
+      const fallbackAvg = speedHistory.length ? (speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length) : 0;
+      const calories = estimateCyclingCaloriesKcal(distanceKm, moveSeconds, avgEstimate ?? fallbackAvg);
+      const hydrationLiters = (moveSeconds / 3600) * HYDRATION_PER_HOUR_LITERS;
+
+      if (els.distance) {
+        els.distance.textContent = `${distanceKm.toFixed(2)} км`;
+      }
+      if (els.calories) {
+        els.calories.textContent = `${calories} ккал`;
+      }
+      if (els.descent) {
+        els.descent.textContent = `-${Math.floor(totalDescent)} м`;
+      }
+      if (els.water) {
+        els.water.textContent = `${hydrationLiters.toFixed(2)} л`;
+      }
+    }
+
+    function resetRideStateToIdle() {
+      seconds = 0;
+      moveSeconds = 0;
+      distance = 0;
+      maxSpeed = 0;
+      totalElevation = 0;
+      totalDescent = 0;
+      currentSlope = 0;
+      minAltitude = null;
+      maxAltitude = null;
+      pauseCount = 0;
+      speedHistory = [];
+      pathCoordinates = [];
+      lastLat = null;
+      lastLon = null;
+      lastAlt = null;
+      lastTimestamp = null;
+      rideStartedAt = null;
+      lastCalories = 0;
+
+      if (polyline) {
+        polyline.setLatLngs([]);
+      }
+
+      if (marker) {
+        marker.setLatLng([44.7866, 20.4489]);
+      }
+
+      if (map) {
+        map.setView([44.7866, 20.4489], 13);
+      }
+
+      els.time.textContent = '00:00';
+      els.moveTime.textContent = '00:00';
+      els.speed.textContent = '0';
+      els.maxSpeed.textContent = '0';
+      els.elev.textContent = '0 м';
+      els.slope.textContent = '0%';
+      updateLiveOverviewMetrics();
+    }
+
     async function startRide() {
       if (!navigator.geolocation) {
         els.errorMsg.style.display = 'block';
@@ -2924,6 +3038,7 @@
         els.slope.textContent = '0%';
         els.time.textContent = '00:00';
         els.moveTime.textContent = '00:00';
+        updateLiveOverviewMetrics();
       }
 
       isRecording = true;
@@ -2938,6 +3053,7 @@
       els.pauseIndicator.classList.add('hidden');
       els.speedWrapper.classList.remove('paused');
       els.restoreBanner.classList.add('hidden');
+      updateLiveOverviewMetrics();
 
       const wakeLockReady = await requestWakeLock();
       if (wakeLockReady) {
@@ -3054,6 +3170,7 @@
       els.modal.classList.remove('active');
       clearActiveRideDraft();
       restoredDraft = false;
+      resetRideStateToIdle();
       resetSessionUiToIdle();
       currentSummarySavedAt = null;
     }
