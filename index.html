@@ -348,6 +348,13 @@
       gap: 10px;
     }
 
+    .overview-grid .metric {
+      min-height: 88px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
     .metric {
       padding: 12px 12px 11px;
       border-radius: 18px;
@@ -994,8 +1001,11 @@
       .mini-grid { gap: 8px; }
       .overview-block { gap: 8px; }
       .overview-grid { gap: 8px; }
+      .overview-grid .metric { min-height: 76px; }
+      .overview-grid .metric-label { font-size: 0.56rem; letter-spacing: 0.08em; line-height: 1.05; }
+      .overview-grid .metric-value { font-size: clamp(0.98rem, 4.4vw, 1.18rem); }
       .metric { padding: 10px 10px 9px; }
-      .metric-label { font-size: 0.66rem; margin-bottom: 6px; }
+      .metric-label { font-size: 0.64rem; margin-bottom: 6px; line-height: 1.05; }
       .metric-value { font-size: clamp(1rem, 4.8vw, 1.25rem); }
       .summary-modal {
         align-items: flex-start;
@@ -2000,7 +2010,6 @@
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: `Velotrek · ${formatHistoryTitle(normalizeHistoryRide(ride))}`,
-            text: `${getRideDistanceKm(ride).toFixed(2)} км, ${getRideCalories(ride)} ккал, ${formatNullableDuration(getRideDurationSeconds(ride))}.`,
             files: [file]
           });
         } else {
