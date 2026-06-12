@@ -1207,6 +1207,7 @@
     let lastTimestamp = null;
     let rideStartedAt = null;
     let timerInt = null;
+    let currentSummarySavedAt = null;
     let toastTimers = [];
 
     const USER_WEIGHT_KG = 75;
@@ -1300,6 +1301,19 @@
 
     function setStoredHistory(history) {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function appendHistoryRide(rideData) {
+      try {
+        const history = getStoredHistory();
+        history.push(rideData);
+        setStoredHistory(history);
+        updateHistoryBadge();
+        return rideData.savedAt || null;
+      } catch (err) {
+        console.warn('Failed to append ride to history:', err);
+        return null;
+      }
     }
 
     function parseDistanceKm(value) {
@@ -1848,6 +1862,23 @@
     function deleteHistoryRide(sourceIndex) {
       const history = getStoredHistory();
       if (sourceIndex < 0 || sourceIndex >= history.length) {
+        return false;
+      }
+
+      history.splice(sourceIndex, 1);
+      setStoredHistory(history);
+      updateHistoryBadge();
+      return true;
+    }
+
+    function deleteHistoryRideBySavedAt(savedAt) {
+      if (!savedAt) {
+        return false;
+      }
+
+      const history = getStoredHistory();
+      const sourceIndex = history.findIndex((ride) => ride && ride.savedAt === savedAt);
+      if (sourceIndex === -1) {
         return false;
       }
 
@@ -2792,6 +2823,16 @@
 
       watchId = navigator.geolocation.watchPosition(handlePositionEnhanced, (err) => {
         console.error(err);
+        if (els.errorMsg) {
+          els.errorMsg.style.display = 'block';
+        }
+        if (els.gpsStatus) {
+          els.gpsStatus.textContent = 'GPS ERROR';
+          els.gpsStatus.style.display = 'inline-flex';
+          els.gpsStatus.style.backgroundColor = 'rgba(255, 90, 90, 0.2)';
+          els.gpsStatus.style.color = '#ff8a8a';
+          els.gpsStatus.style.borderColor = 'rgba(255, 90, 90, 0.35)';
+        }
       }, {
         enableHighAccuracy: true,
         timeout: 5000,
@@ -2820,6 +2861,14 @@
       if (timerInt) clearInterval(timerInt);
       await releaseWakeLock();
 
+      const rideData = buildCurrentRidePayload();
+      currentSummarySavedAt = appendHistoryRide(rideData);
+      if (currentSummarySavedAt) {
+        clearActiveRideDraft();
+      } else {
+        saveActiveRideDraft();
+      }
+
       els.stopBtn.classList.remove('visible');
       els.startBtn.style.display = 'inline-flex';
       els.startBtn.textContent = 'ЕЩЕ РАЗ';
@@ -2828,7 +2877,6 @@
 
       updateSummaryValues();
       updateSummaryDetails();
-      saveActiveRideDraft();
       els.modal.classList.add('active');
       showNotification('Поездка завершена. Проверьте итоги и сохраните результат.', 'info');
 
@@ -2880,6 +2928,7 @@
       clearActiveRideDraft();
       restoredDraft = false;
       resetSessionUiToIdle();
+      currentSummarySavedAt = null;
     }
 
     window.addEventListener('load', async () => {
@@ -2956,54 +3005,29 @@
     els.startBtn.addEventListener('click', startRide);
     els.stopBtn.addEventListener('click', stopRide);
     els.summaryCloseBtn.addEventListener('click', () => {
-      els.discardBtn.click();
+      if (currentSummarySavedAt) {
+        resetApp();
+        return;
+      }
+
+      els.modal.classList.remove('active');
     });
     els.shareBtn.addEventListener('click', () => {
       void shareRide(buildCurrentRidePayload());
     });
     els.saveBtn.addEventListener('click', () => {
-      const speedStats = getSpeedStatsFromSamples(speedHistory);
-      const avgSpeed = calculateAverageSpeedKmh(distance / 1000, moveSeconds) ?? speedStats.avg ?? 0;
-      const pauseSeconds = Math.max(seconds - moveSeconds, 0);
-      const rideData = {
-        time: formatTime(seconds),
-        moveTime: formatTime(moveSeconds),
-        distance: `${(distance / 1000).toFixed(2)} км`,
-        distanceMeters: distance,
-        distanceKm: Number((distance / 1000).toFixed(2)),
-        seconds,
-        moveSeconds,
-        avgSpeed: Number(avgSpeed.toFixed(1)),
-        minSpeed: speedStats.min,
-        maxSpeed: speedStats.max ?? maxSpeed,
-        calories: lastCalories,
-        totalElevation,
-        totalDescent,
-        pauseCount,
-        pauseSeconds,
-        speedHistory: [...speedHistory],
-        coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
-        pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
-        routePoints: pathCoordinates.map(([lat, lon]) => ({ lat, lng: lon })),
-        minAltitude,
-        maxAltitude,
-        hydrationLiters: (moveSeconds / 3600) * HYDRATION_PER_HOUR_LITERS,
-        rideStartedAt: rideStartedAt ? rideStartedAt.toISOString() : null,
-        lastTimestamp,
-        date: new Date().toLocaleDateString('ru-RU'),
-        dateLabel: new Date().toLocaleString('ru-RU'),
-        savedAt: new Date().toISOString()
-      };
-      const history = getStoredHistory();
-      history.push(rideData);
-      setStoredHistory(history);
-      updateHistoryBadge();
+      if (!currentSummarySavedAt) {
+        currentSummarySavedAt = appendHistoryRide(buildCurrentRidePayload());
+      }
       clearActiveRideDraft();
       resetApp();
       showNotification('Маршрут сохранен в историю.', 'success');
       alert('Маршрут сохранен в память браузера!');
     });
     els.discardBtn.addEventListener('click', () => {
+      if (currentSummarySavedAt) {
+        deleteHistoryRideBySavedAt(currentSummarySavedAt);
+      }
       clearActiveRideDraft();
       resetApp();
       showNotification('Черновик поездки удалён.', 'warning');
