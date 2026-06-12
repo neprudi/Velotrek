@@ -861,6 +861,12 @@
       margin-bottom: 18px;
     }
 
+    .share-poster-route-map {
+      width: 100%;
+      height: 100%;
+      background: #11161d;
+    }
+
     .share-poster-stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1214,6 +1220,7 @@
     const PAUSE_THRESHOLD = 3.0;
     const RESUME_THRESHOLD = 3.8;
     const MAX_VALID_SPEED_KMH = 90;
+    const MAX_ACCEPTED_ACCURACY_M = 60;
     const MIN_TRACK_POINT_DISTANCE_M = 1.5;
     const MIN_ELEVATION_DELTA_M = 1.5;
     const HYDRATION_PER_HOUR_LITERS = 0.6;
@@ -1441,6 +1448,14 @@
     }
 
     function getRideDurationSeconds(ride) {
+      if (ride.rideStartedAt) {
+        const startedAtMs = new Date(ride.rideStartedAt).getTime();
+        const endedAtMs = ride.savedAt ? new Date(ride.savedAt).getTime() : NaN;
+        if (!Number.isNaN(startedAtMs) && !Number.isNaN(endedAtMs) && endedAtMs >= startedAtMs) {
+          return Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000));
+        }
+      }
+
       if (Number.isFinite(ride.seconds)) {
         return ride.seconds;
       }
@@ -1606,6 +1621,19 @@
       return 0;
     }
 
+    function getElapsedRideSeconds(startedAt = rideStartedAt) {
+      if (!(startedAt instanceof Date)) {
+        return seconds;
+      }
+
+      const startedAtMs = startedAt.getTime();
+      if (Number.isNaN(startedAtMs)) {
+        return seconds;
+      }
+
+      return Math.max(0, Math.round((Date.now() - startedAtMs) / 1000));
+    }
+
     function updateHistoryBadge() {
       const historyLength = getStoredHistory().length;
       if (els.historyCount) {
@@ -1769,6 +1797,8 @@
       const normalizedRide = normalizeHistoryRide(ride);
       const poster = document.createElement('section');
       poster.className = 'share-poster';
+      const mapId = `share-poster-map-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      poster.dataset.mapId = mapId;
 
       const routeStats = [
         ['Время', formatNullableDuration(normalizedRide.seconds)],
@@ -1796,6 +1826,16 @@
         <div class="share-poster-stats"></div>
       `;
 
+      const subtitleEl = poster.querySelector('.share-poster-subtitle');
+      if (subtitleEl) {
+        subtitleEl.textContent = `${normalizedRide.dateLabel || normalizedRide.date || 'Сохранённый маршрут'} · ${formatNullableDuration(normalizedRide.seconds)} · ${getRideCalories(normalizedRide)} ккал`;
+      }
+
+      const routeHost = poster.querySelector('.share-poster-route');
+      if (routeHost) {
+        routeHost.innerHTML = `<div id="${mapId}" class="share-poster-route-map"></div>`;
+      }
+
       const stats = poster.querySelector('.share-poster-stats');
       routeStats.forEach(([label, value]) => {
         stats.appendChild(createShareStat(label, value));
@@ -1804,15 +1844,96 @@
       return poster;
     }
 
+    function buildSharePosterMap(containerId, coordinates) {
+      const container = document.getElementById(containerId);
+      if (!container) return null;
+
+      const displayCoordinates = smoothRouteCoordinates(coordinates);
+      if (!Array.isArray(displayCoordinates) || displayCoordinates.length < 2) {
+        container.classList.add('empty');
+        container.textContent = 'Маршрут не сохранён';
+        return null;
+      }
+
+      const posterMap = L.map(containerId, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        keyboard: false,
+        boxZoom: false,
+        inertia: false,
+        preferCanvas: true
+      }).setView(displayCoordinates[0], 14);
+
+      L.tileLayer(ROUTE_TILE_URL, {
+        crossOrigin: true
+      }).addTo(posterMap);
+
+      const route = L.polyline(displayCoordinates, {
+        color: '#00d2ff',
+        weight: 5,
+        opacity: 0.96,
+        smoothFactor: 0,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(posterMap);
+
+      L.circleMarker(displayCoordinates[0], {
+        radius: 6,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#00ff9d',
+        fillOpacity: 1
+      }).addTo(posterMap);
+      L.circleMarker(displayCoordinates[displayCoordinates.length - 1], {
+        radius: 6,
+        weight: 2,
+        color: '#061018',
+        fillColor: '#ff5c7a',
+        fillOpacity: 1
+      }).addTo(posterMap);
+
+      posterMap.fitBounds(route.getBounds(), { padding: [24, 24] });
+      requestAnimationFrame(() => posterMap.invalidateSize());
+      return posterMap;
+    }
+
+    function waitForMapLoad(mapInstance, timeoutMs = 900) {
+      if (!mapInstance) {
+        return Promise.resolve();
+      }
+
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+
+        const timer = window.setTimeout(finish, timeoutMs);
+        mapInstance.once('load', () => {
+          window.clearTimeout(timer);
+          finish();
+        });
+      });
+    }
+
     async function shareRide(ride) {
       const poster = buildSharePoster(ride);
       poster.style.pointerEvents = 'none';
       document.body.appendChild(poster);
+      const normalizedRide = normalizeHistoryRide(ride);
+      const posterMap = buildSharePosterMap(poster.dataset.mapId || '', normalizedRide.coordinates);
 
       try {
         if (document.fonts && document.fonts.ready) {
           await document.fonts.ready;
         }
+        await waitForMapLoad(posterMap);
         await new Promise((resolve) => setTimeout(resolve, 120));
 
         const canvas = await html2canvas(poster, {
@@ -1846,6 +1967,9 @@
           showNotification('Не удалось подготовить красивый шаринг поездки.', 'error');
         }
       } finally {
+        if (posterMap) {
+          posterMap.remove();
+        }
         poster.remove();
       }
     }
@@ -2117,17 +2241,18 @@
     }
 
     function buildCurrentRidePayload() {
+      const totalSeconds = getElapsedRideSeconds();
       const speedStats = getSpeedStatsFromSamples(speedHistory);
       const distanceKm = Number((distance / 1000).toFixed(2));
       const avgSpeed = calculateAverageSpeedKmh(distanceKm, moveSeconds) ?? speedStats.avg ?? 0;
 
       return normalizeHistoryRide({
-        time: formatTime(seconds),
+        time: formatTime(totalSeconds),
         moveTime: formatTime(moveSeconds),
         distance: `${distanceKm.toFixed(2)} км`,
         distanceMeters: distance,
         distanceKm,
-        seconds,
+        seconds: totalSeconds,
         moveSeconds,
         avgSpeed: Number(avgSpeed.toFixed(1)),
         minSpeed: speedStats.min,
@@ -2136,7 +2261,7 @@
         totalElevation,
         totalDescent,
         pauseCount,
-        pauseSeconds: Math.max(seconds - moveSeconds, 0),
+        pauseSeconds: Math.max(totalSeconds - moveSeconds, 0),
         speedHistory: [...speedHistory],
         coordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
         pathCoordinates: pathCoordinates.map(([lat, lon]) => [lat, lon]),
@@ -2400,7 +2525,7 @@
 
     function handlePosition(position) {
       if (!isRecording) return;
-      if (position.coords.accuracy > 30) return;
+      if (position.coords.accuracy > MAX_ACCEPTED_ACCURACY_M) return;
 
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
@@ -2496,7 +2621,7 @@
 
     function handlePositionEnhanced(position) {
       if (!isRecording) return;
-      if (position.coords.accuracy > 30) return;
+      if (position.coords.accuracy > MAX_ACCEPTED_ACCURACY_M) return;
 
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
@@ -2723,7 +2848,8 @@
       const avg = (avgEstimate ?? fallbackAvg).toFixed(1);
       const distKm = (distance / 1000).toFixed(2);
       const calories = estimateCyclingCaloriesKcal(distanceKm, moveSeconds, avgEstimate ?? fallbackAvg);
-      const pauseSeconds = Math.max(seconds - moveSeconds, 0);
+      const totalSeconds = getElapsedRideSeconds();
+      const pauseSeconds = Math.max(totalSeconds - moveSeconds, 0);
       const hydrationLiters = (moveSeconds / 3600) * HYDRATION_PER_HOUR_LITERS;
       lastCalories = calories;
 
@@ -2731,7 +2857,7 @@
         els.summaryDateLine.textContent = formatRideDateTime(rideStartedAt || new Date());
       }
 
-      els.shareTime.textContent = formatTime(seconds);
+      els.shareTime.textContent = formatTime(totalSeconds);
       els.shareAvgSpeed.textContent = avg;
       els.shareDist.textContent = `${distKm} км`;
       els.shareCalories.textContent = `${calories}`;
@@ -2743,7 +2869,8 @@
     }
 
     function updateSummaryDetails() {
-      const pauseSeconds = Math.max(seconds - moveSeconds, 0);
+      const totalSeconds = getElapsedRideSeconds();
+      const pauseSeconds = Math.max(totalSeconds - moveSeconds, 0);
       const hydrationLiters = (moveSeconds / 3600) * HYDRATION_PER_HOUR_LITERS;
 
       if (els.summaryDateLine) {
@@ -2842,10 +2969,8 @@
       if (timerInt) clearInterval(timerInt);
       timerInt = setInterval(() => {
         if (!isRecording) return;
-        if (!isPaused) {
-          seconds++;
-          els.time.textContent = formatTime(seconds);
-        }
+        seconds = getElapsedRideSeconds();
+        els.time.textContent = formatTime(seconds);
         if (seconds > 0 && seconds % 5 === 0) {
           saveActiveRideDraft();
         }
@@ -2860,6 +2985,8 @@
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
       if (timerInt) clearInterval(timerInt);
       await releaseWakeLock();
+
+      seconds = getElapsedRideSeconds();
 
       const rideData = buildCurrentRidePayload();
       currentSummarySavedAt = appendHistoryRide(rideData);
