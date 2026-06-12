@@ -2164,11 +2164,11 @@
         const info = document.createElement('div');
         const title = document.createElement('div');
         title.className = 'history-date';
-        title.textContent = formatHistoryTitle(ride);
+        title.textContent = formatHistoryTitle(normalizedRide);
 
         const subtitle = document.createElement('div');
         subtitle.className = 'history-subtitle';
-        subtitle.textContent = ride.dateLabel || ride.date || 'Сохранённый маршрут';
+        subtitle.textContent = normalizedRide.dateLabel || normalizedRide.date || 'Сохранённый маршрут';
 
         info.append(title, subtitle);
 
